@@ -46,7 +46,6 @@ public class ChamadoService {
     public ChamadoDTO create(ChamadoDTO dto) {
         Chamado chamado = toEntity(dto);
         chamado.setId(null);
-        chamado.setDataAbertura(null);
         if (chamado.getStatus() == null) {
             chamado.setStatus(Status.ABERTO);
         }
