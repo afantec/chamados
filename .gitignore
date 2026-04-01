@@ -15,6 +15,7 @@ back/.classpath
 back/.project
 back/.settings/
 back/bin/
+back/.tools
 back/.env
 back/.env.*
 !back/.env.example
