@@ -20,3 +20,46 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
+
+### Java / Maven ###
+backend/target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+hs_err_pid*
+replay_pid*
+.mvn/wrapper/maven-wrapper.jar
+
+### Spring Boot ###
+backend/HELP.md
+
+### Node / Frontend ###
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+
+### Environment ###
+.env
+.env.local
+.env.*.local
+
+### OS ###
+.DS_Store
+Thumbs.db
+
+### IDE ###
+.idea/
+*.iml
+*.iws
+*.ipr
+.classpath
+.project
+.settings/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
