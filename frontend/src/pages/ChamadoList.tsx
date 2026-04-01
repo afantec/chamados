@@ -5,6 +5,11 @@ import {
   Button,
   Chip,
   Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   FormControl,
   InputLabel,
   MenuItem,
@@ -43,6 +48,7 @@ export default function ChamadoList() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<Status | ''>('')
+  const [deleteId, setDeleteId] = useState<number | null>(null)
 
   const loadChamados = useCallback(async () => {
     setLoading(true)
@@ -63,13 +69,15 @@ export default function ChamadoList() {
     loadChamados()
   }, [loadChamados])
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm('Tem certeza que deseja excluir este chamado?')) return
+  const handleDelete = async () => {
+    if (deleteId === null) return
     try {
-      await chamadoService.delete(id)
+      await chamadoService.delete(deleteId)
+      setDeleteId(null)
       loadChamados()
     } catch {
       setError('Erro ao excluir o chamado.')
+      setDeleteId(null)
     }
   }
 
@@ -158,7 +166,7 @@ export default function ChamadoList() {
             <IconButton
               size="small"
               color="error"
-              onClick={() => handleDelete(params.row.id as number)}
+              onClick={() => setDeleteId(params.row.id as number)}
             >
               <DeleteIcon fontSize="small" />
             </IconButton>
@@ -254,6 +262,21 @@ export default function ChamadoList() {
           />
         </Paper>
       </Container>
+
+      <Dialog open={deleteId !== null} onClose={() => setDeleteId(null)}>
+        <DialogTitle>Confirmar exclusão</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Tem certeza que deseja excluir este chamado? Esta ação não pode ser desfeita.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteId(null)}>Cancelar</Button>
+          <Button onClick={handleDelete} color="error" variant="contained" autoFocus>
+            Excluir
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }
