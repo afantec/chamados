@@ -31,6 +31,7 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import SearchIcon from "@mui/icons-material/Search";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import ClearIcon from "@mui/icons-material/Clear";
+import DownloadIcon from "@mui/icons-material/Download";
 import type {
   Tarefa,
   TarefaRequest,
@@ -69,6 +70,28 @@ const PRIORIDADE_COLOR = (p: number) => {
   if (p >= 8) return "#ff1744";
   if (p >= 5) return "#ffab00";
   return "#00e676";
+};
+
+const csvEscape = (value: unknown): string => {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  const text = String(value).replace(/"/g, '""');
+  return `"${text}"`;
+};
+
+const formatCsvDate = (value?: string): string => {
+  if (!value) {
+    return "";
+  }
+
+  const date = dayjs(value);
+  if (!date.isValid()) {
+    return value;
+  }
+
+  return date.format("YYYY-MM-DD HH:mm:ss");
 };
 
 const emptyForm = (): TarefaRequest => ({
@@ -315,6 +338,69 @@ const Tarefas: React.FC = () => {
     setBuscaTexto("");
   };
 
+  const handleExportarCsv = () => {
+    const headers = [
+      "Codigo",
+      "Descricao",
+      "Tipo",
+      "Desenvolvedor",
+      "Status",
+      "Versao",
+      "Prioridade",
+      "Completo",
+      "Branch",
+      "Criacao",
+      "Entrega",
+      "Finalizacao",
+      "Ambiente",
+      "Anotacoes",
+    ];
+
+    const rows = tarefas.map((tarefa) => {
+      const anotacoes = tarefa.anotacoes?.length
+        ? tarefa.anotacoes
+            .map((a) => `${a.id} - ${a.descricao} (${formatCsvDate(a.dataAnotacao)})`)
+            .join(" | ")
+        : "";
+
+      return [
+        tarefa.codigo,
+        tarefa.descricao,
+        tarefa.tipo?.descricao,
+        tarefa.desenvolvedor?.nome,
+        tarefa.status?.descricao,
+        tarefa.versao?.numeroVersao,
+        tarefa.prioridade,
+        tarefa.percentualCompleto,
+        tarefa.branchNome,
+        formatCsvDate(tarefa.dataCriacao),
+        formatCsvDate(tarefa.dataEntrega),
+        formatCsvDate(tarefa.dataFinalizacao),
+        tarefa.ambiente,
+        anotacoes,
+      ];
+    });
+
+    const csvContent = [
+      headers.map(csvEscape).join(";"),
+      ...rows.map((row) => row.map(csvEscape).join(";")),
+    ].join("\r\n");
+
+    const blob = new Blob(["\uFEFF", csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const timestamp = dayjs().format("YYYYMMDD_HHmmss");
+
+    link.href = url;
+    link.download = `tarefas_${timestamp}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const filtroAtivo = Object.values(filtros).some(
     (v) => v !== undefined && v !== null && v !== "",
   );
@@ -548,13 +634,23 @@ const Tarefas: React.FC = () => {
             {filtroAtivo && " (filtros ativos)"}
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleAbrirCriar}
-        >
-          Nova Tarefa
-        </Button>
+        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <Button
+            variant="outlined"
+            startIcon={<DownloadIcon />}
+            onClick={handleExportarCsv}
+            disabled={!tarefas.length}
+          >
+            Exportar CSV
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleAbrirCriar}
+          >
+            Nova Tarefa
+          </Button>
+        </Box>
       </Box>
 
       {/* Search & Filters */}
