@@ -521,7 +521,14 @@ const Tarefas: React.FC = () => {
   ];
 
   return (
-    <Box>
+    <Box
+      sx={{
+        height: "calc(100vh - 140px)",
+        minHeight: 520,
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
       {/* Header */}
       <Box
         sx={{
@@ -587,48 +594,27 @@ const Tarefas: React.FC = () => {
             ),
           }}
         />
-        <Button
-          variant="outlined"
-          startIcon={<SearchIcon />}
-          onClick={handleBuscar}
-        >
-          Buscar
-        </Button>
-        <Button
-          variant={showFiltros ? "contained" : "outlined"}
-          startIcon={<FilterListIcon />}
-          onClick={() => setShowFiltros(!showFiltros)}
-          color={filtroAtivo ? "primary" : "inherit"}
-        >
-          Filtros{filtroAtivo ? " •" : ""}
-        </Button>
-        {filtroAtivo && (
-          <Button
-            variant="text"
-            startIcon={<ClearIcon />}
-            onClick={handleLimparFiltros}
-            color="error"
-            size="small"
+        <FormControl size="small" sx={{ minWidth: 160 }}>
+          <InputLabel>Tipo</InputLabel>
+          <Select
+            label="Tipo"
+            value={filtros.tipoId ?? ""}
+            onChange={(e) =>
+              setFiltros((f) => ({
+                ...f,
+                tipoId: e.target.value ? Number(e.target.value) : null,
+              }))
+            }
           >
-            Limpar filtros
-          </Button>
-        )}
-      </Box>
-
-      <Collapse in={showFiltros}>
-        <Box
-          sx={{
-            p: 2,
-            mb: 2,
-            border: `1px solid ${alpha("#00d4ff", 0.15)}`,
-            borderRadius: 2,
-            bgcolor: alpha("#00d4ff", 0.03),
-            display: "flex",
-            gap: 2,
-            flexWrap: "wrap",
-          }}
-        >
-          <FormControl size="small" sx={{ minWidth: 160 }}>
+            <MenuItem value="">Todos</MenuItem>
+            {tipos.map((t) => (
+              <MenuItem key={t.id} value={t.id}>
+                {t.descricao}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <FormControl size="small" sx={{ minWidth: 160 }}>
             <InputLabel>Status</InputLabel>
             <Select
               label="Status"
@@ -644,26 +630,6 @@ const Tarefas: React.FC = () => {
               {status.map((s) => (
                 <MenuItem key={s.id} value={s.id}>
                   {s.descricao}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 160 }}>
-            <InputLabel>Tipo</InputLabel>
-            <Select
-              label="Tipo"
-              value={filtros.tipoId ?? ""}
-              onChange={(e) =>
-                setFiltros((f) => ({
-                  ...f,
-                  tipoId: e.target.value ? Number(e.target.value) : null,
-                }))
-              }
-            >
-              <MenuItem value="">Todos</MenuItem>
-              {tipos.map((t) => (
-                <MenuItem key={t.id} value={t.id}>
-                  {t.descricao}
                 </MenuItem>
               ))}
             </Select>
@@ -686,26 +652,6 @@ const Tarefas: React.FC = () => {
               {desenvolvedores.map((d) => (
                 <MenuItem key={d.id} value={d.id}>
                   {d.nome}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Versão</InputLabel>
-            <Select
-              label="Versão"
-              value={filtros.versaoId ?? ""}
-              onChange={(e) =>
-                setFiltros((f) => ({
-                  ...f,
-                  versaoId: e.target.value ? Number(e.target.value) : null,
-                }))
-              }
-            >
-              <MenuItem value="">Todas</MenuItem>
-              {versoes.map((v) => (
-                <MenuItem key={v.id} value={v.id}>
-                  {v.numeroVersao}
                 </MenuItem>
               ))}
             </Select>
@@ -748,8 +694,33 @@ const Tarefas: React.FC = () => {
               },
             }}
           />
-        </Box>
-      </Collapse>
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel>Versão</InputLabel>
+            <Select
+              label="Versão"
+              value={filtros.versaoId ?? ""}
+              onChange={(e) =>
+                setFiltros((f) => ({
+                  ...f,
+                  versaoId: e.target.value ? Number(e.target.value) : null,
+                }))
+              }
+            >
+              <MenuItem value="">Todas</MenuItem>
+              {versoes.map((v) => (
+                <MenuItem key={v.id} value={v.id}>
+                  {v.numeroVersao}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <Button
+              variant="outlined"
+              startIcon={<ClearIcon />}
+              onClick={handleLimparFiltros}>
+            Limpar
+          </Button>
+      </Box>
 
       {/* DataGrid */}
       <Collapse in={!!error && !dialogOpen}>
@@ -760,7 +731,8 @@ const Tarefas: React.FC = () => {
 
       <Box
         sx={{
-          height: 520,
+          flex: 1,
+          minHeight: 0,
           "& .MuiDataGrid-root": { borderRadius: 2 },
           bgcolor: "#0d1128",
           borderRadius: 2,

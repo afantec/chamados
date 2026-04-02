@@ -26,7 +26,7 @@ public class DesenvolvedorController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<DesenvolvedorDTO> buscarPorId(@PathVariable Long id) {
+    public ResponseEntity<DesenvolvedorDTO> buscarPorId(@PathVariable("id") Long id) {
         return ResponseEntity.ok(service.buscarPorId(id));
     }
 
@@ -36,12 +36,12 @@ public class DesenvolvedorController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<DesenvolvedorDTO> atualizar(@PathVariable Long id, @RequestBody DesenvolvedorDTO dto) {
+    public ResponseEntity<DesenvolvedorDTO> atualizar(@PathVariable("id") Long id, @RequestBody DesenvolvedorDTO dto) {
         return ResponseEntity.ok(service.atualizar(id, dto));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletar(@PathVariable Long id) {
+    public ResponseEntity<Void> deletar(@PathVariable("id") Long id) {
         service.deletar(id);
         return ResponseEntity.noContent().build();
     }

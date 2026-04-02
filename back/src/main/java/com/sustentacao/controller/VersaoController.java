@@ -21,7 +21,7 @@ public class VersaoController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<VersaoDTO> buscarPorId(@PathVariable Long id) {
+    public ResponseEntity<VersaoDTO> buscarPorId(@PathVariable("id") Long id) {
         return ResponseEntity.ok(service.buscarPorId(id));
     }
 
@@ -31,12 +31,12 @@ public class VersaoController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<VersaoDTO> atualizar(@PathVariable Long id, @RequestBody VersaoDTO dto) {
+    public ResponseEntity<VersaoDTO> atualizar(@PathVariable("id") Long id, @RequestBody VersaoDTO dto) {
         return ResponseEntity.ok(service.atualizar(id, dto));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletar(@PathVariable Long id) {
+    public ResponseEntity<Void> deletar(@PathVariable("id") Long id) {
         service.deletar(id);
         return ResponseEntity.noContent().build();
     }

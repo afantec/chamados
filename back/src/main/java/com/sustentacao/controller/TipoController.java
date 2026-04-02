@@ -21,7 +21,7 @@ public class TipoController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<TipoDTO> buscarPorId(@PathVariable Long id) {
+    public ResponseEntity<TipoDTO> buscarPorId(@PathVariable("id") Long id) {
         return ResponseEntity.ok(service.buscarPorId(id));
     }
 
@@ -31,12 +31,12 @@ public class TipoController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<TipoDTO> atualizar(@PathVariable Long id, @RequestBody TipoDTO dto) {
+    public ResponseEntity<TipoDTO> atualizar(@PathVariable("id") Long id, @RequestBody TipoDTO dto) {
         return ResponseEntity.ok(service.atualizar(id, dto));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletar(@PathVariable Long id) {
+    public ResponseEntity<Void> deletar(@PathVariable("id") Long id) {
         service.deletar(id);
         return ResponseEntity.noContent().build();
     }

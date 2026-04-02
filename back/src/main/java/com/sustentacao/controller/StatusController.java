@@ -21,7 +21,7 @@ public class StatusController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<StatusDTO> buscarPorId(@PathVariable Long id) {
+    public ResponseEntity<StatusDTO> buscarPorId(@PathVariable("id") Long id) {
         return ResponseEntity.ok(service.buscarPorId(id));
     }
 
@@ -31,12 +31,12 @@ public class StatusController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<StatusDTO> atualizar(@PathVariable Long id, @RequestBody StatusDTO dto) {
+    public ResponseEntity<StatusDTO> atualizar(@PathVariable("id") Long id, @RequestBody StatusDTO dto) {
         return ResponseEntity.ok(service.atualizar(id, dto));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletar(@PathVariable Long id) {
+    public ResponseEntity<Void> deletar(@PathVariable("id") Long id) {
         service.deletar(id);
         return ResponseEntity.noContent().build();
     }

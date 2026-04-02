@@ -18,12 +18,12 @@ public class AnotacaoController {
     private final AnotacaoService service;
 
     @GetMapping("/tarefa/{tarefaId}")
-    public List<AnotacaoDTO> listarPorTarefa(@PathVariable Long tarefaId) {
+    public List<AnotacaoDTO> listarPorTarefa(@PathVariable("tarefaId") Long tarefaId) {
         return service.listarPorTarefa(tarefaId);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<AnotacaoDTO> buscarPorId(@PathVariable Long id) {
+    public ResponseEntity<AnotacaoDTO> buscarPorId(@PathVariable("id") Long id) {
         return ResponseEntity.ok(service.buscarPorId(id));
     }
 
@@ -33,12 +33,12 @@ public class AnotacaoController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<AnotacaoDTO> atualizar(@PathVariable Long id, @Valid @RequestBody AnotacaoRequestDTO dto) {
+    public ResponseEntity<AnotacaoDTO> atualizar(@PathVariable("id") Long id, @Valid @RequestBody AnotacaoRequestDTO dto) {
         return ResponseEntity.ok(service.atualizar(id, dto));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletar(@PathVariable Long id) {
+    public ResponseEntity<Void> deletar(@PathVariable("id") Long id) {
         service.deletar(id);
         return ResponseEntity.noContent().build();
     }
