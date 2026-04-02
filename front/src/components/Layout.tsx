@@ -24,6 +24,8 @@ import GroupIcon from "@mui/icons-material/Group";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import MenuIcon from "@mui/icons-material/Menu";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import LightModeIcon from "@mui/icons-material/LightMode";
+import DarkModeIcon from "@mui/icons-material/DarkMode";
 
 const DRAWER_WIDTH = 240;
 const DRAWER_COLLAPSED = 64;
@@ -37,9 +39,15 @@ const navItems = [
 
 interface LayoutProps {
   children: React.ReactNode;
+  themeMode: "dark" | "light";
+  onToggleTheme: () => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children }) => {
+const Layout: React.FC<LayoutProps> = ({
+  children,
+  themeMode,
+  onToggleTheme,
+}) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -162,9 +170,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         sx={{
           width: `calc(100% - ${drawerWidth}px)`,
           ml: `${drawerWidth}px`,
-          bgcolor: alpha("#0d1128", 0.85),
+          bgcolor:
+            themeMode === "dark"
+              ? alpha("#0d1128", 0.85)
+              : alpha("#ffffff", 0.85),
           backdropFilter: "blur(12px)",
-          borderBottom: `1px solid ${alpha("#00d4ff", 0.1)}`,
+          borderBottom: `1px solid ${
+            themeMode === "dark"
+              ? alpha("#00d4ff", 0.1)
+              : alpha("#0ea5e9", 0.16)
+          }`,
           transition: "width 0.3s, margin 0.3s",
         }}
       >
@@ -181,7 +196,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <Typography
             variant="h6"
             sx={{
-              background: "linear-gradient(90deg, #e2e8f0, #94a3b8)",
+              background:
+                themeMode === "dark"
+                  ? "linear-gradient(90deg, #e2e8f0, #94a3b8)"
+                  : "linear-gradient(90deg, #0f172a, #334155)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               fontWeight: 600,
@@ -190,6 +208,35 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             {navItems.find((n) => n.path === location.pathname)?.label ||
               "Sistema de Sustentação"}
           </Typography>
+          <Box sx={{ flexGrow: 1 }} />
+          <Tooltip
+            title={themeMode === "dark" ? "Ativar tema claro" : "Ativar tema escuro"}
+          >
+            <IconButton
+              onClick={onToggleTheme}
+              size="small"
+              sx={{
+                color: themeMode === "dark" ? "#facc15" : "#0284c7",
+                border: `1px solid ${
+                  themeMode === "dark"
+                    ? alpha("#facc15", 0.35)
+                    : alpha("#0284c7", 0.35)
+                }`,
+                bgcolor:
+                  themeMode === "dark"
+                    ? alpha("#facc15", 0.1)
+                    : alpha("#0284c7", 0.08),
+                "&:hover": {
+                  bgcolor:
+                    themeMode === "dark"
+                      ? alpha("#facc15", 0.18)
+                      : alpha("#0284c7", 0.16),
+                },
+              }}
+            >
+              {themeMode === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
+            </IconButton>
+          </Tooltip>
         </Toolbar>
       </AppBar>
 
@@ -204,8 +251,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           "& .MuiDrawer-paper": {
             width: drawerWidth,
             boxSizing: "border-box",
-            bgcolor: "#080e24",
-            borderRight: `1px solid ${alpha("#00d4ff", 0.1)}`,
+            bgcolor: themeMode === "dark" ? "#080e24" : "#f8fbff",
+            borderRight: `1px solid ${
+              themeMode === "dark"
+                ? alpha("#00d4ff", 0.1)
+                : alpha("#0ea5e9", 0.16)
+            }`,
             overflow: "hidden",
             transition: "width 0.3s",
           },

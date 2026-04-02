@@ -22,6 +22,7 @@ import {
   FormControl,
   InputLabel,
   Select,
+  useTheme,
 } from "@mui/material";
 import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
 import AddIcon from "@mui/icons-material/Add";
@@ -110,6 +111,7 @@ const emptyForm = (): TarefaRequest => ({
 });
 
 const Tarefas: React.FC = () => {
+  const theme = useTheme();
   const navigate = useNavigate();
   const [tarefas, setTarefas] = useState<Tarefa[]>([]);
   const [loading, setLoading] = useState(true);
@@ -830,9 +832,9 @@ const Tarefas: React.FC = () => {
           flex: 1,
           minHeight: 0,
           "& .MuiDataGrid-root": { borderRadius: 2 },
-          bgcolor: "#0d1128",
+          bgcolor: theme.palette.background.paper,
           borderRadius: 2,
-          border: `1px solid ${alpha("#00d4ff", 0.1)}`,
+          border: `1px solid ${theme.palette.divider}`,
         }}
       >
         <DataGrid
