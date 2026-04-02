@@ -61,25 +61,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       >
         {open && (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Box
-              sx={{
-                width: 32,
-                height: 32,
-                borderRadius: "8px",
-                background: "linear-gradient(135deg, #00a3c4, #7c3aed)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: `0 0 16px ${alpha("#00d4ff", 0.4)}`,
-              }}
-            >
-              <AssignmentIcon sx={{ color: "#fff", fontSize: 18 }} />
-            </Box>
+            <img src="/favicon.png" alt="Logo" style={{ width: 26, height: 26 }} />
             <Typography
               variant="subtitle1"
               fontWeight={700}
               sx={{
-                background: "linear-gradient(90deg, #00d4ff, #a855f7)",
+                background: "linear-gradient(90deg, #dbc607, #9e9404)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 letterSpacing: "0.03em",
@@ -94,14 +81,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           size="small"
           sx={{
             color: "primary.main",
-            "&:hover": { bgcolor: alpha("#00d4ff", 0.1) },
+            "&:hover": { bgcolor: alpha("#aca004", 0.1) },
           }}
         >
-          {open ? <ChevronLeftIcon /> : <MenuIcon />}
+          {open ? <ChevronLeftIcon /> : <img src="/favicon.png" alt="Logo" style={{ width: 26, height: 26 }} />}
         </IconButton>
       </Toolbar>
 
-      <Divider sx={{ borderColor: alpha("#00d4ff", 0.1) }} />
+      <Divider sx={{ borderColor: alpha("#b1a009", 0.1) }} />
 
       <List sx={{ flex: 1, py: 1.5, px: open ? 1 : 0.5 }}>
         {navItems.map((item) => {

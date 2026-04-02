@@ -71,9 +71,21 @@ GRANT ALL PRIVILEGES ON DATABASE db_certezza TO sustentacao;
 ### 4) Rodar a aplicacao Spring
 
 Na raiz do projeto:
+
+Atualize o classpath de runtime (necessario apos alterar dependencias no `pom.xml`):
+
+```bash
+.\.tools\apache-maven-3.9.9\bin\mvn.cmd -q -DskipTests dependency:build-classpath "-Dmdep.outputFile=.tools/runtime-classpath.txt"
+```
+
+Execucao direta com Java:
+
 ```bash
 $env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-17.0.18.8-hotspot'; $env:Path="$env:JAVA_HOME\bin;$env:Path"; $runtimeCp = Get-Content '.\.tools\runtime-classpath.txt' -Raw; $argFile = Join-Path $PWD '.tools\run-api.args'; Set-Content -Path $argFile -Value @('-cp', ((Resolve-Path '.\target\classes').Path + ';' + $runtimeCp.Trim()), 'com.sustentacao.SustentacaoApplication'); & "$env:JAVA_HOME\bin\java.exe" "@$argFile"
 ```
+
+Ou via Spring Boot Maven Plugin:
+
 ```bash
 mvn clean spring-boot:run
 ```
@@ -81,6 +93,11 @@ mvn clean spring-boot:run
 A API vai iniciar em:
 
 - `http://localhost:8080`
+
+Documentacao Swagger/OpenAPI:
+
+- UI do Swagger: `http://localhost:8080/swagger-ui.html`
+- JSON OpenAPI: `http://localhost:8080/api-docs`
 
 ### 5) Criacao das tabelas
 
