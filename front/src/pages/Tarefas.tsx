@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import {
   Box,
   Button,
+  Card,
+  CardContent,
   Chip,
   Dialog,
   DialogTitle,
@@ -15,6 +17,7 @@ import {
   IconButton,
   Tooltip,
   LinearProgress,
+  Skeleton,
   Alert,
   Collapse,
   InputAdornment,
@@ -22,7 +25,6 @@ import {
   FormControl,
   InputLabel,
   Select,
-  useTheme,
 } from "@mui/material";
 import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
 import AddIcon from "@mui/icons-material/Add";
@@ -33,6 +35,8 @@ import SearchIcon from "@mui/icons-material/Search";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import ClearIcon from "@mui/icons-material/Clear";
 import DownloadIcon from "@mui/icons-material/Download";
+import ViewAgendaIcon from "@mui/icons-material/ViewAgenda";
+import TableRowsIcon from "@mui/icons-material/TableRows";
 import type {
   Tarefa,
   TarefaRequest,
@@ -116,13 +120,15 @@ const emptyForm = (): TarefaRequest => ({
 });
 
 const Tarefas: React.FC = () => {
-  const theme = useTheme();
   const navigate = useNavigate();
   const [tarefas, setTarefas] = useState<Tarefa[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtros, setFiltros] = useState<FiltrosTarefa>({});
   const [showFiltros, setShowFiltros] = useState(false);
   const [buscaTexto, setBuscaTexto] = useState("");
+  const [modoVisualizacao, setModoVisualizacao] = useState<"cards" | "tabela">(
+    "cards",
+  );
 
   const [status, setStatus] = useState<Status[]>([]);
   const [tipos, setTipos] = useState<Tipo[]>([]);
@@ -647,6 +653,19 @@ const Tarefas: React.FC = () => {
         <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "flex-end" }}>
           <Button
             variant="outlined"
+            startIcon={
+              modoVisualizacao === "cards" ? <TableRowsIcon /> : <ViewAgendaIcon />
+            }
+            onClick={() =>
+              setModoVisualizacao((prev) =>
+                prev === "cards" ? "tabela" : "cards",
+              )
+            }
+          >
+            {modoVisualizacao === "cards" ? "Ver em tabela" : "Ver em cards"}
+          </Button>
+          <Button
+            variant="outlined"
             startIcon={<DownloadIcon />}
             onClick={handleExportarCsv}
             disabled={!tarefas.length}
@@ -828,7 +847,7 @@ const Tarefas: React.FC = () => {
           </Button>
       </Box>
 
-      {/* DataGrid */}
+      {/* Lista de Tarefas */}
       <Collapse in={!!error && !dialogOpen}>
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
@@ -839,22 +858,232 @@ const Tarefas: React.FC = () => {
         sx={{
           flex: 1,
           minHeight: 0,
-          "& .MuiDataGrid-root": { borderRadius: 2 },
-          bgcolor: theme.palette.background.paper,
-          borderRadius: 2,
-          border: `1px solid ${theme.palette.divider}`,
+          overflow: "hidden",
         }}
       >
-        <DataGrid
-          rows={tarefas}
-          getRowId={(row) => row.id ?? row.codigo}
-          columns={columns}
-          loading={loading}
-          pageSizeOptions={[10, 25, 50]}
-          initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-          disableRowSelectionOnClick
-          sx={{ border: "none" }}
-        />
+        {modoVisualizacao === "cards" ? (
+          <Card sx={{ height: "100%" }}>
+            <CardContent
+              sx={{ p: 2, height: "100%", overflow: "auto", display: "flex" }}
+            >
+              <Box sx={{ width: "100%", display: "flex", flexDirection: "column", gap: 1 }}>
+                {loading
+                  ? Array.from({ length: 8 }).map((_, i) => (
+                      <Skeleton
+                        key={i}
+                        height={88}
+                        sx={{ borderRadius: 2 }}
+                        variant="rounded"
+                      />
+                    ))
+                  : tarefas.map((tarefa) => {
+                      const tipoCor = TIPO_COLORS[tarefa.tipo?.descricao] || "#94a3b8";
+                      const statusCor =
+                        STATUS_COLORS[tarefa.status?.descricao] || "#94a3b8";
+
+                      return (
+                        <Box
+                          key={tarefa.id}
+                          onClick={() => navigate(`/tarefas/${tarefa.id}`)}
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 2,
+                            p: 1.5,
+                            borderRadius: 2,
+                            border: `1px solid ${alpha("#00d4ff", 0.08)}`,
+                            cursor: "pointer",
+                            transition: "all 0.2s",
+                            "&:hover": {
+                              bgcolor: alpha("#00d4ff", 0.06),
+                              borderColor: alpha("#00d4ff", 0.2),
+                            },
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              width: 6,
+                              height: 54,
+                              borderRadius: 1,
+                              bgcolor: PRIORIDADE_COLOR(tarefa.prioridade),
+                              flexShrink: 0,
+                            }}
+                          />
+
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography
+                              variant="body2"
+                              fontWeight={500}
+                              noWrap
+                              sx={{ color: "text.primary" }}
+                            >
+                              <span
+                                style={{
+                                  color: "#00d4ff",
+                                  marginRight: 8,
+                                  fontFamily: "monospace",
+                                }}
+                              >
+                                {tarefa.codigo}
+                              </span>
+                              {tarefa.descricao}
+                            </Typography>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: 0.75,
+                                mt: 1,
+                                alignItems: "center",
+                              }}
+                            >
+                              <Chip
+                                label={`Tipo: ${tarefa.tipo?.descricao || "—"}`}
+                                size="small"
+                                sx={{
+                                  bgcolor: alpha(tipoCor, 0.15),
+                                  color: tipoCor,
+                                  border: `1px solid ${alpha(tipoCor, 0.3)}`,
+                                  fontWeight: 600,
+                                  fontSize: "0.68rem",
+                                }}
+                              />
+                              <Typography variant="caption" color="text.secondary">
+                                Desenvolvedor: {tarefa.desenvolvedor?.nome || "—"}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                Criação: {dayjs(tarefa.dataCriacao).isValid()
+                                  ? dayjs(tarefa.dataCriacao).format("DD/MM/YYYY")
+                                  : "—"}
+                              </Typography>
+                            </Box>
+                          </Box>
+
+                          <Box
+                            sx={{
+                              minWidth: { xs: 130, md: 170 },
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "flex-end",
+                              gap: 0.75,
+                            }}
+                          >
+                            <Chip
+                              label={tarefa.status?.descricao || "—"}
+                              size="small"
+                              sx={{
+                                bgcolor: alpha(statusCor, 0.15),
+                                color: statusCor,
+                                border: `1px solid ${alpha(statusCor, 0.3)}`,
+                                fontWeight: 600,
+                                fontSize: "0.7rem",
+                              }}
+                            />
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                              <Box
+                                sx={{
+                                  width: 28,
+                                  height: 28,
+                                  borderRadius: "50%",
+                                  bgcolor: alpha(PRIORIDADE_COLOR(tarefa.prioridade), 0.15),
+                                  border: `2px solid ${PRIORIDADE_COLOR(tarefa.prioridade)}`,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  color: PRIORIDADE_COLOR(tarefa.prioridade),
+                                  fontWeight: 700,
+                                  fontSize: "0.75rem",
+                                }}
+                              >
+                                {tarefa.prioridade}
+                              </Box>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 90 }}>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={tarefa.percentualCompleto}
+                                  sx={{ flex: 1, height: 5, borderRadius: 3 }}
+                                />
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  sx={{ minWidth: 30, textAlign: "right" }}
+                                >
+                                  {tarefa.percentualCompleto}%
+                                </Typography>
+                              </Box>
+                            </Box>
+                            <Box sx={{ display: "flex", gap: 0.5 }}>
+                              <Tooltip title="Ver detalhes">
+                                <IconButton
+                                  size="small"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    navigate(`/tarefas/${tarefa.id}`);
+                                  }}
+                                  sx={{ color: "primary.main" }}
+                                >
+                                  <OpenInNewIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Editar">
+                                <IconButton
+                                  size="small"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleAbrirEditar(tarefa);
+                                  }}
+                                  sx={{ color: "#ffab00" }}
+                                >
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Excluir">
+                                <IconButton
+                                  size="small"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setDeleteId(tarefa.id);
+                                  }}
+                                  sx={{ color: "#ff1744" }}
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                          </Box>
+                        </Box>
+                      );
+                    })}
+                {!loading && !tarefas.length && (
+                  <Typography color="text.secondary" textAlign="center" py={6}>
+                    Nenhuma tarefa encontrada para os filtros atuais.
+                  </Typography>
+                )}
+              </Box>
+            </CardContent>
+          </Card>
+        ) : (
+          <Box
+            sx={{
+              height: "100%",
+              bgcolor: "background.paper",
+              borderRadius: 2,
+              border: `1px solid ${alpha("#94a3b8", 0.3)}`,
+              "& .MuiDataGrid-root": { borderRadius: 2 },
+            }}
+          >
+            <DataGrid
+              rows={tarefas}
+              getRowId={(row) => row.id ?? row.codigo}
+              columns={columns}
+              loading={loading}
+              pageSizeOptions={[10, 25, 50]}
+              initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+              disableRowSelectionOnClick
+              sx={{ border: "none" }}
+            />
+          </Box>
+        )}
       </Box>
 
       {/* Criar/Editar Dialog */}
