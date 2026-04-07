@@ -73,6 +73,11 @@ const PRIORIDADE_COLOR = (p: number) => {
   return "#00e676";
 };
 
+const isStatusFinalizado = (descricao?: string): boolean => {
+  const normalizado = descricao?.trim().toLowerCase();
+  return normalizado === "finalizado" || normalizado === "finalizada";
+};
+
 const csvEscape = (value: unknown): string => {
   if (value === null || value === undefined) {
     return "";
@@ -139,6 +144,9 @@ const Tarefas: React.FC = () => {
   const aplicarFiltros = useCallback(
     (lista: Tarefa[], filtroObj: FiltrosTarefa) => {
       return lista.filter((tarefa) => {
+        if (!filtroObj.statusId && isStatusFinalizado(tarefa.status.descricao)) {
+          return false;
+        }
         if (
           filtroObj.descricao &&
           !tarefa.descricao
