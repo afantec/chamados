@@ -134,6 +134,8 @@ const TarefaDetalhe: React.FC = () => {
   const [uploadingArquivo, setUploadingArquivo] = useState(false);
   const [arquivoError, setArquivoError] = useState("");
   const [arquivoSuccess, setArquivoSuccess] = useState("");
+  const [deleteArquivoId, setDeleteArquivoId] = useState<number | null>(null);
+  const [deletingArquivo, setDeletingArquivo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const carregar = async () => {
@@ -258,6 +260,27 @@ const TarefaDetalhe: React.FC = () => {
       setArquivoError(
         e instanceof Error ? e.message : "Erro ao realizar download do arquivo.",
       );
+    }
+  };
+
+  const handleDeletarArquivo = async () => {
+    if (!id || !deleteArquivoId) return;
+
+    setArquivoError("");
+    setArquivoSuccess("");
+    setDeletingArquivo(true);
+
+    try {
+      await tarefaService.deletarArquivo(Number(id), deleteArquivoId);
+      setArquivos((prev) => prev.filter((a) => a.id !== deleteArquivoId));
+      setDeleteArquivoId(null);
+      setArquivoSuccess("Arquivo removido com sucesso.");
+    } catch (e: unknown) {
+      setArquivoError(
+        e instanceof Error ? e.message : "Erro ao remover o arquivo.",
+      );
+    } finally {
+      setDeletingArquivo(false);
     }
   };
 
@@ -865,13 +888,21 @@ const TarefaDetalhe: React.FC = () => {
                           {formatarTamanho(arquivo.tamanhoBytes)} •{" "}
                           {dayjs(arquivo.dataUpload).format("DD/MM/YYYY HH:mm")}
                         </Typography>
-                        <Box sx={{ mt: 1, display: "flex", justifyContent: "flex-end" }}>
+                        <Box sx={{ mt: 1, display: "flex", justifyContent: "flex-end", gap: 0.5 }}>
                           <Button
                             size="small"
                             startIcon={<DownloadIcon />}
                             onClick={() => handleDownloadArquivo(arquivo)}
                           >
                             Download
+                          </Button>
+                          <Button
+                            size="small"
+                            color="error"
+                            startIcon={<DeleteIcon />}
+                            onClick={() => setDeleteArquivoId(arquivo.id)}
+                          >
+                            Excluir
                           </Button>
                         </Box>
                       </Box>
@@ -939,6 +970,15 @@ const TarefaDetalhe: React.FC = () => {
         onConfirm={handleDeletarAnotacao}
         onCancel={() => setDeleteAnotacaoId(null)}
         loading={deletingAnotacao}
+      />
+
+      <ConfirmDialog
+        open={!!deleteArquivoId}
+        title="Excluir Arquivo"
+        message="Tem certeza que deseja excluir este arquivo? A remoção também será feita fisicamente no diretório C:/Sustentacao."
+        onConfirm={handleDeletarArquivo}
+        onCancel={() => setDeleteArquivoId(null)}
+        loading={deletingArquivo}
       />
     </Box>
   );

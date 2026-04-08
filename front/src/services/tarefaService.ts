@@ -55,4 +55,8 @@ export const tarefaService = {
         });
         return res.data;
     },
+
+    deletarArquivo: async (tarefaId: number, arquivoId: number): Promise<void> => {
+        await api.delete(`/tarefas/${tarefaId}/arquivos/${arquivoId}`);
+    },
 };

@@ -49,4 +49,12 @@ public class ArquivoController {
                         "attachment; filename*=UTF-8''" + nomeUtf8)
                 .body(resource);
     }
+
+    @DeleteMapping("/{tarefaId}/arquivos/{arquivoId}")
+    public ResponseEntity<Void> deletar(
+            @PathVariable("tarefaId") Long tarefaId,
+            @PathVariable("arquivoId") Long arquivoId) {
+        arquivoService.deletar(tarefaId, arquivoId);
+        return ResponseEntity.noContent().build();
+    }
 }

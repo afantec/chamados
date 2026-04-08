@@ -117,6 +117,20 @@ public class ArquivoService {
         return StringUtils.hasText(contentType) ? contentType : "application/octet-stream";
     }
 
+    @Transactional
+    public void deletar(Long tarefaId, Long arquivoId) {
+        validarTarefaExiste(tarefaId);
+        Arquivo arquivo = obterArquivoDaTarefa(tarefaId, arquivoId);
+
+        try {
+            Files.deleteIfExists(Paths.get(arquivo.getCaminhoCompleto()));
+        } catch (IOException ex) {
+            throw new IllegalArgumentException("Não foi possível remover o arquivo físico.");
+        }
+
+        arquivoRepository.delete(arquivo);
+    }
+
     private void validarTarefaExiste(Long tarefaId) {
         if (!tarefaRepository.existsById(tarefaId)) {
             throw new RuntimeException("Tarefa não encontrada: " + tarefaId);
