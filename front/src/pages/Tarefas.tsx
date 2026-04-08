@@ -119,6 +119,14 @@ const emptyForm = (): TarefaRequest => ({
   ambiente: "",
 });
 
+type OrdenacaoCards =
+  | "criacaoDesc"
+  | "criacaoAsc"
+  | "prioridadeDesc"
+  | "prioridadeAsc"
+  | "codigoAsc"
+  | "codigoDesc";
+
 const Tarefas: React.FC = () => {
   const navigate = useNavigate();
   const [tarefas, setTarefas] = useState<Tarefa[]>([]);
@@ -129,6 +137,8 @@ const Tarefas: React.FC = () => {
   const [modoVisualizacao, setModoVisualizacao] = useState<"cards" | "tabela">(
     "cards",
   );
+  const [ordenacaoCards, setOrdenacaoCards] =
+    useState<OrdenacaoCards>("criacaoDesc");
 
   const [status, setStatus] = useState<Status[]>([]);
   const [tipos, setTipos] = useState<Tipo[]>([]);
@@ -420,6 +430,33 @@ const Tarefas: React.FC = () => {
   const filtroAtivo = Object.values(filtros).some(
     (v) => v !== undefined && v !== null && v !== "",
   );
+
+  const tarefasCardsOrdenadas = [...tarefas].sort((a, b) => {
+    const dataA = dayjs(a.dataCriacao).valueOf();
+    const dataB = dayjs(b.dataCriacao).valueOf();
+
+    switch (ordenacaoCards) {
+      case "criacaoAsc":
+        return dataA - dataB;
+      case "prioridadeDesc":
+        return b.prioridade - a.prioridade;
+      case "prioridadeAsc":
+        return a.prioridade - b.prioridade;
+      case "codigoAsc":
+        return a.codigo.localeCompare(b.codigo, "pt-BR", {
+          numeric: true,
+          sensitivity: "base",
+        });
+      case "codigoDesc":
+        return b.codigo.localeCompare(a.codigo, "pt-BR", {
+          numeric: true,
+          sensitivity: "base",
+        });
+      case "criacaoDesc":
+      default:
+        return dataB - dataA;
+    }
+  });
 
   const columns: GridColDef[] = [
     {
@@ -845,6 +882,25 @@ const Tarefas: React.FC = () => {
               onClick={handleLimparFiltros}>
             Limpar
           </Button>
+          {modoVisualizacao === "cards" && (
+            <FormControl size="small" sx={{ minWidth: 220 }}>
+              <InputLabel>Ordenar Cards</InputLabel>
+              <Select
+                label="Ordenar Cards"
+                value={ordenacaoCards}
+                onChange={(e) =>
+                  setOrdenacaoCards(e.target.value as OrdenacaoCards)
+                }
+              >
+                <MenuItem value="criacaoDesc">Criação (mais recente)</MenuItem>
+                <MenuItem value="criacaoAsc">Criação (mais antiga)</MenuItem>
+                <MenuItem value="prioridadeDesc">Prioridade (maior)</MenuItem>
+                <MenuItem value="prioridadeAsc">Prioridade (menor)</MenuItem>
+                <MenuItem value="codigoAsc">Código (A-Z)</MenuItem>
+                <MenuItem value="codigoDesc">Código (Z-A)</MenuItem>
+              </Select>
+            </FormControl>
+          )}
       </Box>
 
       {/* Lista de Tarefas */}
@@ -876,7 +932,7 @@ const Tarefas: React.FC = () => {
                         variant="rounded"
                       />
                     ))
-                  : tarefas.map((tarefa) => {
+                  : tarefasCardsOrdenadas.map((tarefa) => {
                       const tipoCor = TIPO_COLORS[tarefa.tipo?.descricao] || "#94a3b8";
                       const statusCor =
                         STATUS_COLORS[tarefa.status?.descricao] || "#94a3b8";
