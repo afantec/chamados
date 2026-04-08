@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Box,
@@ -31,7 +31,14 @@ import PersonIcon from "@mui/icons-material/Person";
 import LabelIcon from "@mui/icons-material/Label";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import CloudIcon from "@mui/icons-material/Cloud";
-import type { Tarefa, Anotacao, AnotacaoRequest } from "../types";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
+import DownloadIcon from "@mui/icons-material/Download";
+import type {
+  Tarefa,
+  Anotacao,
+  AnotacaoRequest,
+  ArquivoTarefa,
+} from "../types";
 import { tarefaService } from "../services/tarefaService";
 import { anotacaoService } from "../services/anotacaoService";
 import ConfirmDialog from "../components/ConfirmDialog";
@@ -58,6 +65,20 @@ const PRIORIDADE_COLOR = (p: number) => {
   if (p >= 5) return "#ffab00";
   return "#00e676";
 };
+
+const EXTENSOES_PERMITIDAS = [
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".bmp",
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+].join(",");
 
 const InfoRow: React.FC<{
   icon: React.ReactNode;
@@ -109,6 +130,12 @@ const TarefaDetalhe: React.FC = () => {
   const [deleteAnotacaoId, setDeleteAnotacaoId] = useState<number | null>(null);
   const [deletingAnotacao, setDeletingAnotacao] = useState(false);
 
+  const [arquivos, setArquivos] = useState<ArquivoTarefa[]>([]);
+  const [uploadingArquivo, setUploadingArquivo] = useState(false);
+  const [arquivoError, setArquivoError] = useState("");
+  const [arquivoSuccess, setArquivoSuccess] = useState("");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const carregar = async () => {
     if (!id) return;
     setLoading(true);
@@ -117,6 +144,12 @@ const TarefaDetalhe: React.FC = () => {
       setTarefa(t);
       const anots = await anotacaoService.listarPorTarefa(Number(id));
       setAnotacoes(anots);
+      try {
+        const anexos = await tarefaService.listarArquivos(Number(id));
+        setArquivos(anexos);
+      } catch {
+        setArquivos([]);
+      }
     } catch {
       setNotFound(true);
     } finally {
@@ -171,6 +204,60 @@ const TarefaDetalhe: React.FC = () => {
       setAnotacoes((prev) => prev.filter((a) => a.id !== deleteAnotacaoId));
     } finally {
       setDeletingAnotacao(false);
+    }
+  };
+
+  const formatarTamanho = (bytes: number) => {
+    if (!bytes) return "0 B";
+    const units = ["B", "KB", "MB", "GB"];
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    const valor = bytes / Math.pow(1024, i);
+    return `${valor.toFixed(valor >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+  };
+
+  const handleSelecionarArquivo = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file || !id) return;
+
+    setArquivoError("");
+    setArquivoSuccess("");
+    setUploadingArquivo(true);
+
+    try {
+      await tarefaService.uploadArquivo(Number(id), file);
+      const anexos = await tarefaService.listarArquivos(Number(id));
+      setArquivos(anexos);
+      setArquivoSuccess("Arquivo adicionado com sucesso.");
+    } catch (e: unknown) {
+      setArquivoError(e instanceof Error ? e.message : "Erro ao enviar arquivo.");
+    } finally {
+      setUploadingArquivo(false);
+    }
+  };
+
+  const handleDownloadArquivo = async (arquivo: ArquivoTarefa) => {
+    if (!id) return;
+    setArquivoError("");
+    setArquivoSuccess("");
+
+    try {
+      const blob = await tarefaService.downloadArquivo(Number(id), arquivo.id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = arquivo.nomeOriginal;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e: unknown) {
+      setArquivoError(
+        e instanceof Error ? e.message : "Erro ao realizar download do arquivo.",
+      );
     }
   };
 
@@ -554,132 +641,246 @@ const TarefaDetalhe: React.FC = () => {
 
         {/* Sidebar summary */}
         <Grid item xs={12} md={4}>
-          <Card
-            sx={{
-              position: "sticky",
-              top: 80,
-              "&::before": {
-                content: '""',
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                height: 3,
-                background: `linear-gradient(90deg, ${statusColor}, ${alpha(statusColor, 0.3)})`,
-              },
-            }}
-          >
-            <CardContent sx={{ p: 3 }}>
-              <Typography
-                variant="subtitle2"
-                color="primary.main"
-                fontWeight={700}
-                sx={{
-                  mb: 2,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                }}
-              >
-                Resumo
-              </Typography>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-                <Box
+          <Box sx={{ position: "sticky", top: 80 }}>
+            <Card
+              sx={{
+                mb: 2,
+                "&::before": {
+                  content: '""',
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 3,
+                  background: `linear-gradient(90deg, ${statusColor}, ${alpha(statusColor, 0.3)})`,
+                },
+              }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Typography
+                  variant="subtitle2"
+                  color="primary.main"
+                  fontWeight={700}
                   sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
+                    mb: 2,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
                   }}
                 >
-                  <Typography variant="body2" color="text.secondary">
-                    Status
-                  </Typography>
-                  <Chip
-                    label={tarefa.status.descricao}
-                    size="small"
+                  Resumo
+                </Typography>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                  <Box
                     sx={{
-                      bgcolor: alpha(statusColor, 0.15),
-                      color: statusColor,
-                      fontWeight: 700,
-                      border: `1px solid ${alpha(statusColor, 0.3)}`,
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
                     }}
-                  />
-                </Box>
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <Typography variant="body2" color="text.secondary">
-                    Tipo
-                  </Typography>
-                  <Chip
-                    label={tarefa.tipo.descricao}
-                    size="small"
+                  >
+                    <Typography variant="body2" color="text.secondary">
+                      Status
+                    </Typography>
+                    <Chip
+                      label={tarefa.status.descricao}
+                      size="small"
+                      sx={{
+                        bgcolor: alpha(statusColor, 0.15),
+                        color: statusColor,
+                        fontWeight: 700,
+                        border: `1px solid ${alpha(statusColor, 0.3)}`,
+                      }}
+                    />
+                  </Box>
+                  <Box
                     sx={{
-                      bgcolor: alpha(tipoColor, 0.15),
-                      color: tipoColor,
-                      fontWeight: 700,
-                      border: `1px solid ${alpha(tipoColor, 0.3)}`,
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
                     }}
-                  />
-                </Box>
-                <Divider sx={{ borderColor: alpha("#00d4ff", 0.1) }} />
-                <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Prioridade
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    fontWeight={700}
-                    color={PRIORIDADE_COLOR(tarefa.prioridade)}
                   >
-                    {tarefa.prioridade}/10
-                  </Typography>
-                </Box>
-                <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Progresso
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    fontWeight={700}
-                    color="primary.main"
-                  >
-                    {tarefa.percentualCompleto}%
-                  </Typography>
-                </Box>
-                <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Anotações
-                  </Typography>
-                  <Typography variant="body2" fontWeight={700}>
-                    {anotacoes.length}
-                  </Typography>
-                </Box>
-                {tarefa.versao && (
-                  <>
-                    <Divider sx={{ borderColor: alpha("#00d4ff", 0.1) }} />
-                    <Box
-                      sx={{ display: "flex", justifyContent: "space-between" }}
+                    <Typography variant="body2" color="text.secondary">
+                      Tipo
+                    </Typography>
+                    <Chip
+                      label={tarefa.tipo.descricao}
+                      size="small"
+                      sx={{
+                        bgcolor: alpha(tipoColor, 0.15),
+                        color: tipoColor,
+                        fontWeight: 700,
+                        border: `1px solid ${alpha(tipoColor, 0.3)}`,
+                      }}
+                    />
+                  </Box>
+                  <Divider sx={{ borderColor: alpha("#00d4ff", 0.1) }} />
+                  <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Prioridade
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      fontWeight={700}
+                      color={PRIORIDADE_COLOR(tarefa.prioridade)}
                     >
-                      <Typography variant="body2" color="text.secondary">
-                        Versão
-                      </Typography>
-                      <Typography
-                        variant="body2"
-                        fontWeight={600}
-                        sx={{ fontFamily: "monospace", color: "#a855f7" }}
+                      {tarefa.prioridade}/10
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Progresso
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      fontWeight={700}
+                      color="primary.main"
+                    >
+                      {tarefa.percentualCompleto}%
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Anotações
+                    </Typography>
+                    <Typography variant="body2" fontWeight={700}>
+                      {anotacoes.length}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Arquivos
+                    </Typography>
+                    <Typography variant="body2" fontWeight={700}>
+                      {arquivos.length}
+                    </Typography>
+                  </Box>
+                  {tarefa.versao && (
+                    <>
+                      <Divider sx={{ borderColor: alpha("#00d4ff", 0.1) }} />
+                      <Box
+                        sx={{ display: "flex", justifyContent: "space-between" }}
                       >
-                        {tarefa.versao.numeroVersao}
-                      </Typography>
-                    </Box>
-                  </>
+                        <Typography variant="body2" color="text.secondary">
+                          Versão
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          fontWeight={600}
+                          sx={{ fontFamily: "monospace", color: "#a855f7" }}
+                        >
+                          {tarefa.versao.numeroVersao}
+                        </Typography>
+                      </Box>
+                    </>
+                  )}
+                </Box>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent sx={{ p: 3 }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    mb: 2,
+                  }}
+                >
+                  <Typography
+                    variant="subtitle2"
+                    color="primary.main"
+                    fontWeight={700}
+                    sx={{ textTransform: "uppercase", letterSpacing: "0.08em" }}
+                  >
+                    Arquivos ({arquivos.length})
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<UploadFileIcon />}
+                    disabled={uploadingArquivo}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {uploadingArquivo ? "Enviando..." : "Adicionar"}
+                  </Button>
+                </Box>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={EXTENSOES_PERMITIDAS}
+                  onChange={handleSelecionarArquivo}
+                  style={{ display: "none" }}
+                />
+
+                <Collapse in={!!arquivoError}>
+                  <Alert severity="error" sx={{ mb: 1.5 }}>
+                    {arquivoError}
+                  </Alert>
+                </Collapse>
+
+                <Collapse in={!!arquivoSuccess}>
+                  <Alert severity="success" sx={{ mb: 1.5 }}>
+                    {arquivoSuccess}
+                  </Alert>
+                </Collapse>
+
+                {arquivos.length === 0 ? (
+                  <Box
+                    sx={{
+                      py: 3,
+                      textAlign: "center",
+                      bgcolor: alpha("#00d4ff", 0.03),
+                      borderRadius: 2,
+                      border: `1px dashed ${alpha("#00d4ff", 0.15)}`,
+                    }}
+                  >
+                    <Typography color="text.secondary" variant="body2">
+                      Nenhum arquivo anexado.
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    {arquivos.map((arquivo) => (
+                      <Box
+                        key={arquivo.id}
+                        sx={{
+                          p: 1.25,
+                          borderRadius: 1.5,
+                          border: `1px solid ${alpha("#00d4ff", 0.12)}`,
+                          bgcolor: alpha("#00d4ff", 0.03),
+                        }}
+                      >
+                        <Typography
+                          variant="body2"
+                          fontWeight={600}
+                          sx={{
+                            wordBreak: "break-word",
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          {arquivo.nomeOriginal}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {formatarTamanho(arquivo.tamanhoBytes)} •{" "}
+                          {dayjs(arquivo.dataUpload).format("DD/MM/YYYY HH:mm")}
+                        </Typography>
+                        <Box sx={{ mt: 1, display: "flex", justifyContent: "flex-end" }}>
+                          <Button
+                            size="small"
+                            startIcon={<DownloadIcon />}
+                            onClick={() => handleDownloadArquivo(arquivo)}
+                          >
+                            Download
+                          </Button>
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
                 )}
-              </Box>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Box>
         </Grid>
       </Grid>
 

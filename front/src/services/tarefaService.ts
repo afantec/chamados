@@ -1,5 +1,5 @@
 import api from './api';
-import type { Tarefa, TarefaRequest, FiltrosTarefa } from '../types';
+import type { Tarefa, TarefaRequest, FiltrosTarefa, ArquivoTarefa } from '../types';
 
 export const tarefaService = {
     listar: async (filtros?: FiltrosTarefa): Promise<Tarefa[]> => {
@@ -30,5 +30,29 @@ export const tarefaService = {
 
     deletar: async (id: number): Promise<void> => {
         await api.delete(`/tarefas/${id}`);
+    },
+
+    listarArquivos: async (tarefaId: number): Promise<ArquivoTarefa[]> => {
+        const res = await api.get<ArquivoTarefa[]>(`/tarefas/${tarefaId}/arquivos`);
+        return res.data;
+    },
+
+    uploadArquivo: async (tarefaId: number, arquivo: File): Promise<ArquivoTarefa> => {
+        const formData = new FormData();
+        formData.append('arquivo', arquivo);
+
+        const res = await api.post<ArquivoTarefa>(`/tarefas/${tarefaId}/arquivos`, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+        return res.data;
+    },
+
+    downloadArquivo: async (tarefaId: number, arquivoId: number): Promise<Blob> => {
+        const res = await api.get(`/tarefas/${tarefaId}/arquivos/${arquivoId}/download`, {
+            responseType: 'blob',
+        });
+        return res.data;
     },
 };

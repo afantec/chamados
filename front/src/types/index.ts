@@ -34,6 +34,16 @@ export interface AnotacaoRequest {
     tarefaId: number;
 }
 
+export interface ArquivoTarefa {
+    id: number;
+    tarefaId: number;
+    nomeOriginal: string;
+    tamanhoBytes: number;
+    contentType?: string;
+    extensao?: string;
+    dataUpload: string;
+}
+
 export interface Tarefa {
     id: number;
     codigo: string;
