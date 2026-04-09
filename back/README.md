@@ -80,8 +80,10 @@ Atualize o classpath de runtime (necessario apos alterar dependencias no `pom.xm
 
 Execucao direta com Java:
 
+2. Subir a aplicacao:
+
 ```bash
-$env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-17.0.18.8-hotspot'; $env:Path="$env:JAVA_HOME\bin;$env:Path"; $runtimeCp = Get-Content '.\.tools\runtime-classpath.txt' -Raw; $argFile = Join-Path $PWD '.tools\run-api.args'; Set-Content -Path $argFile -Value @('-cp', ((Resolve-Path '.\target\classes').Path + ';' + $runtimeCp.Trim()), 'com.sustentacao.SustentacaoApplication'); & "$env:JAVA_HOME\bin\java.exe" "@$argFile"
+./mvnw spring-boot:run
 ```
 
 Ou via Spring Boot Maven Plugin:

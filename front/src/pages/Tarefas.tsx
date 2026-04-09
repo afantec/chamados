@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -55,13 +55,44 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs, { Dayjs } from "dayjs";
 
-const STATUS_COLORS: Record<string, string> = {
-  Aberto: "#00d4ff",
-  "Em Andamento": "#ffab00",
-  "Em Revisão": "#a855f7",
-  "Aguardando Aprovação": "#ff9800",
-  Finalizado: "#00e676",
-  Cancelado: "#ff1744",
+const STATUS_COLOR_LIST = [
+  "#00d4ff",
+  "#ff1744",
+  "#00e676",
+  "#a855f7",
+  "#ffab00",
+  "#14b8a6",
+  "#f97316",
+  "#6366f1",
+  "#ec4899",
+  "#84cc16",
+  "#06b6d4",
+  "#eab308",
+];
+
+const FALLBACK_STATUS_COLOR = "#94a3b8";
+
+const getStatusColorByIndex = (index: number): string =>
+  STATUS_COLOR_LIST[index % STATUS_COLOR_LIST.length];
+
+const getStatusColor = (
+  statusItem?: Pick<Status, "id" | "descricao"> | null,
+  statusColorMap?: Record<number, string>,
+): string => {
+  if (statusItem?.id && statusColorMap?.[statusItem.id]) {
+    return statusColorMap[statusItem.id];
+  }
+
+  const descricao = statusItem?.descricao?.trim();
+  if (!descricao) {
+    return FALLBACK_STATUS_COLOR;
+  }
+
+  const hash = descricao
+    .split("")
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+
+  return getStatusColorByIndex(hash);
 };
 
 const TIPO_COLORS: Record<string, string> = {
@@ -127,23 +158,80 @@ type OrdenacaoCards =
   | "codigoAsc"
   | "codigoDesc";
 
+const LIST_STATE_STORAGE_KEY = "tarefas-list-state";
+
+type TarefasListState = {
+  filtros: FiltrosTarefa;
+  buscaTexto: string;
+  modoVisualizacao: "cards" | "tabela";
+  ordenacaoCards: OrdenacaoCards;
+};
+
+const getInitialListState = (): TarefasListState => {
+  const defaultState: TarefasListState = {
+    filtros: {},
+    buscaTexto: "",
+    modoVisualizacao: "cards",
+    ordenacaoCards: "criacaoDesc",
+  };
+
+  if (typeof window === "undefined") {
+    return defaultState;
+  }
+
+  try {
+    const rawState = window.sessionStorage.getItem(LIST_STATE_STORAGE_KEY);
+    if (!rawState) {
+      return defaultState;
+    }
+
+    const parsedState = JSON.parse(rawState) as Partial<TarefasListState>;
+
+    return {
+      filtros: parsedState.filtros ?? {},
+      buscaTexto: parsedState.buscaTexto ?? "",
+      modoVisualizacao:
+        parsedState.modoVisualizacao === "tabela" ? "tabela" : "cards",
+      ordenacaoCards: parsedState.ordenacaoCards ?? "criacaoDesc",
+    };
+  } catch {
+    return defaultState;
+  }
+};
+
 const Tarefas: React.FC = () => {
   const navigate = useNavigate();
+  const initialListState = useMemo(() => getInitialListState(), []);
+
   const [tarefas, setTarefas] = useState<Tarefa[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filtros, setFiltros] = useState<FiltrosTarefa>({});
-  const [showFiltros, setShowFiltros] = useState(false);
-  const [buscaTexto, setBuscaTexto] = useState("");
-  const [modoVisualizacao, setModoVisualizacao] = useState<"cards" | "tabela">(
-    "cards",
+  const [filtros, setFiltros] = useState<FiltrosTarefa>(
+    initialListState.filtros,
   );
-  const [ordenacaoCards, setOrdenacaoCards] =
-    useState<OrdenacaoCards>("criacaoDesc");
+  const [showFiltros, setShowFiltros] = useState(false);
+  const [buscaTexto, setBuscaTexto] = useState(initialListState.buscaTexto);
+  const [modoVisualizacao, setModoVisualizacao] = useState<"cards" | "tabela">(
+    initialListState.modoVisualizacao,
+  );
+  const [ordenacaoCards, setOrdenacaoCards] = useState<OrdenacaoCards>(
+    initialListState.ordenacaoCards,
+  );
 
   const [status, setStatus] = useState<Status[]>([]);
   const [tipos, setTipos] = useState<Tipo[]>([]);
   const [desenvolvedores, setDesenvolvedores] = useState<Desenvolvedor[]>([]);
   const [versoes, setVersoes] = useState<Versao[]>([]);
+
+  const statusColorMap = useMemo(
+    () =>
+      [...status]
+        .sort((a, b) => a.id - b.id)
+        .reduce<Record<number, string>>((acc, item, index) => {
+          acc[item.id] = getStatusColorByIndex(index);
+          return acc;
+        }, {}),
+    [status],
+  );
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -160,7 +248,10 @@ const Tarefas: React.FC = () => {
   const aplicarFiltros = useCallback(
     (lista: Tarefa[], filtroObj: FiltrosTarefa) => {
       return lista.filter((tarefa) => {
-        if (!filtroObj.statusId && isStatusFinalizado(tarefa.status.descricao)) {
+        if (
+          !filtroObj.statusId &&
+          isStatusFinalizado(tarefa.status.descricao)
+        ) {
           return false;
         }
         if (
@@ -243,6 +334,22 @@ const Tarefas: React.FC = () => {
     });
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.sessionStorage.setItem(
+      LIST_STATE_STORAGE_KEY,
+      JSON.stringify({
+        filtros,
+        buscaTexto,
+        modoVisualizacao,
+        ordenacaoCards,
+      }),
+    );
+  }, [filtros, buscaTexto, modoVisualizacao, ordenacaoCards]);
+
   const handleAbrirCriar = () => {
     setEditId(null);
     setForm(emptyForm());
@@ -321,18 +428,11 @@ const Tarefas: React.FC = () => {
             }
           }
         }
-
-        await carregar();
       } else {
         await tarefaService.criar(form);
-        setFiltros({});
-        setBuscaTexto("");
-        const data = await tarefaService.listar();
-        const listaOriginal = Array.isArray(data) ? data : [];
-        setTarefasOriginais(listaOriginal);
-        setTarefas(listaOriginal);
-        setError("");
       }
+
+      await carregar();
       setForm(emptyForm());
       setEditId(null);
       setDialogOpen(false);
@@ -385,7 +485,10 @@ const Tarefas: React.FC = () => {
     const rows = tarefas.map((tarefa) => {
       const anotacoes = tarefa.anotacoes?.length
         ? tarefa.anotacoes
-            .map((a) => `${a.id} - ${a.descricao} (${formatCsvDate(a.dataAnotacao)})`)
+            .map(
+              (a) =>
+                `${a.id} - ${a.descricao} (${formatCsvDate(a.dataAnotacao)})`,
+            )
             .join(" | ")
         : "";
 
@@ -518,20 +621,23 @@ const Tarefas: React.FC = () => {
       width: 160,
       valueGetter: (_value, row: Tarefa) => row?.status?.descricao ?? "—",
       renderCell: (params: GridRenderCellParams) => {
-        const s =
-          (params.row as Tarefa | undefined)?.status?.descricao ??
-          (params.value as string) ??
-          "—";
+        const statusAtual = (params.row as Tarefa | undefined)?.status;
+        const s = statusAtual?.descricao ?? (params.value as string) ?? "—";
+        const statusCor = getStatusColor(
+          statusAtual ?? { id: 0, descricao: s },
+          statusColorMap,
+        );
+
         return (
           <Chip
             label={s}
             size="small"
             sx={{
-              bgcolor: alpha(STATUS_COLORS[s] || "#94a3b8", 0.15),
-              color: STATUS_COLORS[s] || "#94a3b8",
+              bgcolor: alpha(statusCor, 0.15),
+              color: statusCor,
               fontWeight: 600,
               fontSize: "0.7rem",
-              border: `1px solid ${alpha(STATUS_COLORS[s] || "#94a3b8", 0.3)}`,
+              border: `1px solid ${alpha(statusCor, 0.3)}`,
             }}
           />
         );
@@ -687,11 +793,22 @@ const Tarefas: React.FC = () => {
             {filtroAtivo && " (filtros ativos)"}
           </Typography>
         </Box>
-        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <Box
+          sx={{
+            display: "flex",
+            gap: 1,
+            flexWrap: "wrap",
+            justifyContent: "flex-end",
+          }}
+        >
           <Button
             variant="outlined"
             startIcon={
-              modoVisualizacao === "cards" ? <TableRowsIcon /> : <ViewAgendaIcon />
+              modoVisualizacao === "cards" ? (
+                <TableRowsIcon />
+              ) : (
+                <ViewAgendaIcon />
+              )
             }
             onClick={() =>
               setModoVisualizacao((prev) =>
@@ -777,130 +894,125 @@ const Tarefas: React.FC = () => {
           </Select>
         </FormControl>
         <FormControl size="small" sx={{ minWidth: 160 }}>
-            <InputLabel>Status</InputLabel>
-            <Select
-              label="Status"
-              value={filtros.statusId ?? ""}
-              onChange={(e) =>
-                setFiltros((f) => ({
-                  ...f,
-                  statusId: e.target.value ? Number(e.target.value) : null,
-                }))
-              }
-            >
-              <MenuItem value="">Todos</MenuItem>
-              {status.map((s) => (
-                <MenuItem key={s.id} value={s.id}>
-                  {s.descricao}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 180 }}>
-            <InputLabel>Desenvolvedor</InputLabel>
-            <Select
-              label="Desenvolvedor"
-              value={filtros.desenvolvedorId ?? ""}
-              onChange={(e) =>
-                setFiltros((f) => ({
-                  ...f,
-                  desenvolvedorId: e.target.value
-                    ? Number(e.target.value)
-                    : null,
-                }))
-              }
-            >
-              <MenuItem value="">Todos</MenuItem>
-              {desenvolvedores.map((d) => (
-                <MenuItem key={d.id} value={d.id}>
-                  {d.nome}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <DatePicker
-            label="Criação Início"
-            value={
-              filtros.dataCriacaoInicio
-                ? dayjs(filtros.dataCriacaoInicio)
-                : null
-            }
-            onChange={(v: Dayjs | null) =>
+          <InputLabel>Status</InputLabel>
+          <Select
+            label="Status"
+            value={filtros.statusId ?? ""}
+            onChange={(e) =>
               setFiltros((f) => ({
                 ...f,
-                dataCriacaoInicio: v ? v.format("YYYY-MM-DD") : null,
+                statusId: e.target.value ? Number(e.target.value) : null,
               }))
             }
-            slotProps={{
-              textField: {
-                size: "small",
-                sx: { minWidth: 180 },
-              },
-            }}
-          />
-          <DatePicker
-            label="Criação Fim"
-            value={
-              filtros.dataCriacaoFim ? dayjs(filtros.dataCriacaoFim) : null
-            }
-            onChange={(v: Dayjs | null) =>
+          >
+            <MenuItem value="">Todos</MenuItem>
+            {status.map((s) => (
+              <MenuItem key={s.id} value={s.id}>
+                {s.descricao}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <FormControl size="small" sx={{ minWidth: 180 }}>
+          <InputLabel>Desenvolvedor</InputLabel>
+          <Select
+            label="Desenvolvedor"
+            value={filtros.desenvolvedorId ?? ""}
+            onChange={(e) =>
               setFiltros((f) => ({
                 ...f,
-                dataCriacaoFim: v ? v.format("YYYY-MM-DD") : null,
+                desenvolvedorId: e.target.value ? Number(e.target.value) : null,
               }))
             }
-            slotProps={{
-              textField: {
-                size: "small",
-                sx: { minWidth: 180 },
-              },
-            }}
-          />
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Versão</InputLabel>
+          >
+            <MenuItem value="">Todos</MenuItem>
+            {desenvolvedores.map((d) => (
+              <MenuItem key={d.id} value={d.id}>
+                {d.nome}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <DatePicker
+          label="Criação Início"
+          value={
+            filtros.dataCriacaoInicio ? dayjs(filtros.dataCriacaoInicio) : null
+          }
+          onChange={(v: Dayjs | null) =>
+            setFiltros((f) => ({
+              ...f,
+              dataCriacaoInicio: v ? v.format("YYYY-MM-DD") : null,
+            }))
+          }
+          slotProps={{
+            textField: {
+              size: "small",
+              sx: { minWidth: 180 },
+            },
+          }}
+        />
+        <DatePicker
+          label="Criação Fim"
+          value={filtros.dataCriacaoFim ? dayjs(filtros.dataCriacaoFim) : null}
+          onChange={(v: Dayjs | null) =>
+            setFiltros((f) => ({
+              ...f,
+              dataCriacaoFim: v ? v.format("YYYY-MM-DD") : null,
+            }))
+          }
+          slotProps={{
+            textField: {
+              size: "small",
+              sx: { minWidth: 180 },
+            },
+          }}
+        />
+        <FormControl size="small" sx={{ minWidth: 150 }}>
+          <InputLabel>Versão</InputLabel>
+          <Select
+            label="Versão"
+            value={filtros.versaoId ?? ""}
+            onChange={(e) =>
+              setFiltros((f) => ({
+                ...f,
+                versaoId: e.target.value ? Number(e.target.value) : null,
+              }))
+            }
+          >
+            <MenuItem value="">Todas</MenuItem>
+            {versoes.map((v) => (
+              <MenuItem key={v.id} value={v.id}>
+                {v.numeroVersao}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <Button
+          variant="outlined"
+          startIcon={<ClearIcon />}
+          onClick={handleLimparFiltros}
+        >
+          Limpar
+        </Button>
+        {modoVisualizacao === "cards" && (
+          <FormControl size="small" sx={{ minWidth: 220 }}>
+            <InputLabel>Ordenar Cards</InputLabel>
             <Select
-              label="Versão"
-              value={filtros.versaoId ?? ""}
+              label="Ordenar Cards"
+              value={ordenacaoCards}
               onChange={(e) =>
-                setFiltros((f) => ({
-                  ...f,
-                  versaoId: e.target.value ? Number(e.target.value) : null,
-                }))
+                setOrdenacaoCards(e.target.value as OrdenacaoCards)
               }
             >
-              <MenuItem value="">Todas</MenuItem>
-              {versoes.map((v) => (
-                <MenuItem key={v.id} value={v.id}>
-                  {v.numeroVersao}
-                </MenuItem>
-              ))}
+              <MenuItem value="criacaoDesc">Criação (mais recente)</MenuItem>
+              <MenuItem value="criacaoAsc">Criação (mais antiga)</MenuItem>
+              <MenuItem value="prioridadeDesc">Prioridade (maior)</MenuItem>
+              <MenuItem value="prioridadeAsc">Prioridade (menor)</MenuItem>
+              <MenuItem value="codigoAsc">Código (A-Z)</MenuItem>
+              <MenuItem value="codigoDesc">Código (Z-A)</MenuItem>
             </Select>
           </FormControl>
-          <Button
-              variant="outlined"
-              startIcon={<ClearIcon />}
-              onClick={handleLimparFiltros}>
-            Limpar
-          </Button>
-          {modoVisualizacao === "cards" && (
-            <FormControl size="small" sx={{ minWidth: 220 }}>
-              <InputLabel>Ordenar Cards</InputLabel>
-              <Select
-                label="Ordenar Cards"
-                value={ordenacaoCards}
-                onChange={(e) =>
-                  setOrdenacaoCards(e.target.value as OrdenacaoCards)
-                }
-              >
-                <MenuItem value="criacaoDesc">Criação (mais recente)</MenuItem>
-                <MenuItem value="criacaoAsc">Criação (mais antiga)</MenuItem>
-                <MenuItem value="prioridadeDesc">Prioridade (maior)</MenuItem>
-                <MenuItem value="prioridadeAsc">Prioridade (menor)</MenuItem>
-                <MenuItem value="codigoAsc">Código (A-Z)</MenuItem>
-                <MenuItem value="codigoDesc">Código (Z-A)</MenuItem>
-              </Select>
-            </FormControl>
-          )}
+        )}
       </Box>
 
       {/* Lista de Tarefas */}
@@ -922,7 +1034,14 @@ const Tarefas: React.FC = () => {
             <CardContent
               sx={{ p: 2, height: "100%", overflow: "auto", display: "flex" }}
             >
-              <Box sx={{ width: "100%", display: "flex", flexDirection: "column", gap: 1 }}>
+              <Box
+                sx={{
+                  width: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 1,
+                }}
+              >
                 {loading
                   ? Array.from({ length: 8 }).map((_, i) => (
                       <Skeleton
@@ -933,49 +1052,75 @@ const Tarefas: React.FC = () => {
                       />
                     ))
                   : tarefasCardsOrdenadas.map((tarefa) => {
-                      const tipoCor = TIPO_COLORS[tarefa.tipo?.descricao] || "#94a3b8";
-                      const statusCor =
-                        STATUS_COLORS[tarefa.status?.descricao] || "#94a3b8";
+                      const tipoCor =
+                        TIPO_COLORS[tarefa.tipo?.descricao] || "#94a3b8";
+                      const statusCor = getStatusColor(
+                        tarefa.status,
+                        statusColorMap,
+                      );
 
                       return (
                         <Box
                           key={tarefa.id}
                           onClick={() => navigate(`/tarefas/${tarefa.id}`)}
-                          sx={{
+                          sx={(theme) => ({
                             display: "flex",
                             alignItems: "center",
                             gap: 2,
                             p: 1.5,
                             borderRadius: 2,
-                            border: `1px solid ${alpha("#00d4ff", 0.08)}`,
+                            border: `1px solid ${alpha(statusCor, 0.1)}`,
+                            background:
+                              theme.palette.mode === "dark"
+                                ? `linear-gradient(90deg, ${alpha(statusCor, 0.05)} 0%, ${alpha(statusCor, 0.03)} 36%, ${alpha(theme.palette.background.paper, 0.985)} 100%)`
+                                : `linear-gradient(90deg, ${alpha(statusCor, 0.05)} 0%, ${alpha(statusCor, 0.03)} 36%, ${theme.palette.background.paper} 100%)`,
+                            boxShadow: `0 4px 12px ${alpha(statusCor, 0.1)}`,
                             cursor: "pointer",
-                            transition: "all 0.2s",
-                            "&:hover": {
-                              bgcolor: alpha("#00d4ff", 0.06),
-                              borderColor: alpha("#00d4ff", 0.2),
+                            position: "relative",
+                            overflow: "hidden",
+                            transition: "all 0.2s ease",
+                            "&::before": {
+                              content: '""',
+                              position: "absolute",
+                              inset: 0,
+                              background: `linear-gradient(135deg, ${alpha(statusCor, 0.04)} 0%, transparent 60%)`,
+                              pointerEvents: "none",
                             },
-                          }}
+                            "&:hover": {
+                              transform: "translateY(-1px)",
+                              borderColor: alpha(statusCor, 0.7),
+                              boxShadow: `0 8px 18px ${alpha(statusCor, 0.3)}`,
+                            },
+                          })}
                         >
                           <Box
                             sx={{
                               width: 6,
                               height: 54,
                               borderRadius: 1,
-                              bgcolor: PRIORIDADE_COLOR(tarefa.prioridade),
+                              bgcolor: statusCor,
                               flexShrink: 0,
+                              boxShadow: `0 0 8px ${alpha(statusCor, 0.22)}`,
                             }}
                           />
 
-                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Box
+                            sx={{
+                              flex: 1,
+                              minWidth: 0,
+                              position: "relative",
+                              zIndex: 1,
+                            }}
+                          >
                             <Typography
                               variant="body2"
-                              fontWeight={500}
+                              fontWeight={600}
                               noWrap
                               sx={{ color: "text.primary" }}
                             >
                               <span
                                 style={{
-                                  color: "#00d4ff",
+                                  color: statusCor,
                                   marginRight: 8,
                                   fontFamily: "monospace",
                                 }}
@@ -1004,12 +1149,22 @@ const Tarefas: React.FC = () => {
                                   fontSize: "0.68rem",
                                 }}
                               />
-                              <Typography variant="caption" color="text.secondary">
-                                Desenvolvedor: {tarefa.desenvolvedor?.nome || "—"}
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                Desenvolvedor:{" "}
+                                {tarefa.desenvolvedor?.nome || "—"}
                               </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                Criação: {dayjs(tarefa.dataCriacao).isValid()
-                                  ? dayjs(tarefa.dataCriacao).format("DD/MM/YYYY")
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                Criação:{" "}
+                                {dayjs(tarefa.dataCriacao).isValid()
+                                  ? dayjs(tarefa.dataCriacao).format(
+                                      "DD/MM/YYYY",
+                                    )
                                   : "—"}
                               </Typography>
                             </Box>
@@ -1022,26 +1177,38 @@ const Tarefas: React.FC = () => {
                               flexDirection: "column",
                               alignItems: "flex-end",
                               gap: 0.75,
+                              position: "relative",
+                              zIndex: 1,
                             }}
                           >
                             <Chip
                               label={tarefa.status?.descricao || "—"}
                               size="small"
                               sx={{
-                                bgcolor: alpha(statusCor, 0.15),
+                                bgcolor: alpha(statusCor, 0.2),
                                 color: statusCor,
-                                border: `1px solid ${alpha(statusCor, 0.3)}`,
-                                fontWeight: 600,
+                                border: `1px solid ${alpha(statusCor, 0.45)}`,
+                                boxShadow: `0 0 0 1px ${alpha(statusCor, 0.1)}`,
+                                fontWeight: 700,
                                 fontSize: "0.7rem",
                               }}
                             />
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 0.75,
+                              }}
+                            >
                               <Box
                                 sx={{
                                   width: 28,
                                   height: 28,
                                   borderRadius: "50%",
-                                  bgcolor: alpha(PRIORIDADE_COLOR(tarefa.prioridade), 0.15),
+                                  bgcolor: alpha(
+                                    PRIORIDADE_COLOR(tarefa.prioridade),
+                                    0.15,
+                                  ),
                                   border: `2px solid ${PRIORIDADE_COLOR(tarefa.prioridade)}`,
                                   display: "flex",
                                   alignItems: "center",
@@ -1053,11 +1220,26 @@ const Tarefas: React.FC = () => {
                               >
                                 {tarefa.prioridade}
                               </Box>
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 90 }}>
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 0.5,
+                                  minWidth: 90,
+                                }}
+                              >
                                 <LinearProgress
                                   variant="determinate"
                                   value={tarefa.percentualCompleto}
-                                  sx={{ flex: 1, height: 5, borderRadius: 3 }}
+                                  sx={{
+                                    flex: 1,
+                                    height: 5,
+                                    borderRadius: 3,
+                                    bgcolor: alpha(statusCor, 0.18),
+                                    "& .MuiLinearProgress-bar": {
+                                      backgroundColor: statusCor,
+                                    },
+                                  }}
                                 />
                                 <Typography
                                   variant="caption"
@@ -1076,7 +1258,7 @@ const Tarefas: React.FC = () => {
                                     event.stopPropagation();
                                     navigate(`/tarefas/${tarefa.id}`);
                                   }}
-                                  sx={{ color: "primary.main" }}
+                                  sx={{ color: statusCor }}
                                 >
                                   <OpenInNewIcon fontSize="small" />
                                 </IconButton>
@@ -1134,7 +1316,9 @@ const Tarefas: React.FC = () => {
               columns={columns}
               loading={loading}
               pageSizeOptions={[10, 25, 50]}
-              initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+              initialState={{
+                pagination: { paginationModel: { pageSize: 10 } },
+              }}
               disableRowSelectionOnClick
               sx={{ border: "none" }}
             />
