@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Box,
@@ -38,19 +38,52 @@ import type {
   Anotacao,
   AnotacaoRequest,
   ArquivoTarefa,
+  Status,
 } from "../types";
 import { tarefaService } from "../services/tarefaService";
 import { anotacaoService } from "../services/anotacaoService";
+import { statusService } from "../services/statusService";
 import ConfirmDialog from "../components/ConfirmDialog";
 import dayjs from "dayjs";
 
-const STATUS_COLORS: Record<string, string> = {
-  Aberto: "#00d4ff",
-  "Em Andamento": "#ffab00",
-  "Em Revisão": "#a855f7",
-  "Aguardando Aprovação": "#ff9800",
-  Finalizado: "#00e676",
-  Cancelado: "#ff1744",
+const STATUS_COLOR_LIST = [
+  "#00d4ff",
+  "#ff1744",
+  "#00e676",
+  "#a855f7",
+  "#ffab00",
+  "#14b8a6",
+  "#f97316",
+  "#6366f1",
+  "#ec4899",
+  "#84cc16",
+  "#06b6d4",
+  "#eab308",
+];
+
+const FALLBACK_STATUS_COLOR = "#94a3b8";
+
+const getStatusColorByIndex = (index: number): string =>
+  STATUS_COLOR_LIST[index % STATUS_COLOR_LIST.length];
+
+const getStatusColor = (
+  statusItem?: Pick<Status, "id" | "descricao"> | null,
+  statusColorMap?: Record<number, string>,
+): string => {
+  if (statusItem?.id && statusColorMap?.[statusItem.id]) {
+    return statusColorMap[statusItem.id];
+  }
+
+  const descricao = statusItem?.descricao?.trim();
+  if (!descricao) {
+    return FALLBACK_STATUS_COLOR;
+  }
+
+  const hash = descricao
+    .split("")
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+
+  return getStatusColorByIndex(hash);
 };
 
 const TIPO_COLORS: Record<string, string> = {
@@ -119,6 +152,7 @@ const TarefaDetalhe: React.FC = () => {
   const [tarefa, setTarefa] = useState<Tarefa | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [status, setStatus] = useState<Status[]>([]);
 
   const [anotacoes, setAnotacoes] = useState<Anotacao[]>([]);
   const [anotacaoDialog, setAnotacaoDialog] = useState(false);
@@ -163,6 +197,24 @@ const TarefaDetalhe: React.FC = () => {
     carregar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  useEffect(() => {
+    statusService
+      .listar()
+      .then(setStatus)
+      .catch(() => setStatus([]));
+  }, []);
+
+  const statusColorMap = useMemo(
+    () =>
+      [...status]
+        .sort((a, b) => a.id - b.id)
+        .reduce<Record<number, string>>((acc, item, index) => {
+          acc[item.id] = getStatusColorByIndex(index);
+          return acc;
+        }, {}),
+    [status],
+  );
 
   const handleAbrirAnotacao = (anot?: Anotacao) => {
     setEditAnotacao(anot ?? null);
@@ -212,7 +264,10 @@ const TarefaDetalhe: React.FC = () => {
   const formatarTamanho = (bytes: number) => {
     if (!bytes) return "0 B";
     const units = ["B", "KB", "MB", "GB"];
-    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    const i = Math.min(
+      Math.floor(Math.log(bytes) / Math.log(1024)),
+      units.length - 1,
+    );
     const valor = bytes / Math.pow(1024, i);
     return `${valor.toFixed(valor >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
   };
@@ -235,7 +290,9 @@ const TarefaDetalhe: React.FC = () => {
       setArquivos(anexos);
       setArquivoSuccess("Arquivo adicionado com sucesso.");
     } catch (e: unknown) {
-      setArquivoError(e instanceof Error ? e.message : "Erro ao enviar arquivo.");
+      setArquivoError(
+        e instanceof Error ? e.message : "Erro ao enviar arquivo.",
+      );
     } finally {
       setUploadingArquivo(false);
     }
@@ -258,7 +315,9 @@ const TarefaDetalhe: React.FC = () => {
       window.URL.revokeObjectURL(url);
     } catch (e: unknown) {
       setArquivoError(
-        e instanceof Error ? e.message : "Erro ao realizar download do arquivo.",
+        e instanceof Error
+          ? e.message
+          : "Erro ao realizar download do arquivo.",
       );
     }
   };
@@ -315,7 +374,7 @@ const TarefaDetalhe: React.FC = () => {
     );
   }
 
-  const statusColor = STATUS_COLORS[tarefa.status.descricao] || "#94a3b8";
+  const statusColor = getStatusColor(tarefa.status, statusColorMap);
   const tipoColor = TIPO_COLORS[tarefa.tipo.descricao] || "#94a3b8";
 
   return (
@@ -692,7 +751,9 @@ const TarefaDetalhe: React.FC = () => {
                 >
                   Resumo
                 </Typography>
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                <Box
+                  sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}
+                >
                   <Box
                     sx={{
                       display: "flex",
@@ -736,7 +797,9 @@ const TarefaDetalhe: React.FC = () => {
                     />
                   </Box>
                   <Divider sx={{ borderColor: alpha("#00d4ff", 0.1) }} />
-                  <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                  <Box
+                    sx={{ display: "flex", justifyContent: "space-between" }}
+                  >
                     <Typography variant="body2" color="text.secondary">
                       Prioridade
                     </Typography>
@@ -748,7 +811,9 @@ const TarefaDetalhe: React.FC = () => {
                       {tarefa.prioridade}/10
                     </Typography>
                   </Box>
-                  <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                  <Box
+                    sx={{ display: "flex", justifyContent: "space-between" }}
+                  >
                     <Typography variant="body2" color="text.secondary">
                       Progresso
                     </Typography>
@@ -760,7 +825,9 @@ const TarefaDetalhe: React.FC = () => {
                       {tarefa.percentualCompleto}%
                     </Typography>
                   </Box>
-                  <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                  <Box
+                    sx={{ display: "flex", justifyContent: "space-between" }}
+                  >
                     <Typography variant="body2" color="text.secondary">
                       Anotações
                     </Typography>
@@ -768,7 +835,9 @@ const TarefaDetalhe: React.FC = () => {
                       {anotacoes.length}
                     </Typography>
                   </Box>
-                  <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                  <Box
+                    sx={{ display: "flex", justifyContent: "space-between" }}
+                  >
                     <Typography variant="body2" color="text.secondary">
                       Arquivos
                     </Typography>
@@ -780,7 +849,10 @@ const TarefaDetalhe: React.FC = () => {
                     <>
                       <Divider sx={{ borderColor: alpha("#00d4ff", 0.1) }} />
                       <Box
-                        sx={{ display: "flex", justifyContent: "space-between" }}
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
                       >
                         <Typography variant="body2" color="text.secondary">
                           Versão
@@ -863,7 +935,9 @@ const TarefaDetalhe: React.FC = () => {
                     </Typography>
                   </Box>
                 ) : (
-                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                  <Box
+                    sx={{ display: "flex", flexDirection: "column", gap: 1 }}
+                  >
                     {arquivos.map((arquivo) => (
                       <Box
                         key={arquivo.id}
@@ -888,7 +962,14 @@ const TarefaDetalhe: React.FC = () => {
                           {formatarTamanho(arquivo.tamanhoBytes)} •{" "}
                           {dayjs(arquivo.dataUpload).format("DD/MM/YYYY HH:mm")}
                         </Typography>
-                        <Box sx={{ mt: 1, display: "flex", justifyContent: "flex-end", gap: 0.5 }}>
+                        <Box
+                          sx={{
+                            mt: 1,
+                            display: "flex",
+                            justifyContent: "flex-end",
+                            gap: 0.5,
+                          }}
+                        >
                           <Button
                             size="small"
                             startIcon={<DownloadIcon />}
