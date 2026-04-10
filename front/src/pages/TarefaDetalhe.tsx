@@ -20,6 +20,7 @@ import {
   Collapse,
   Tooltip,
   Skeleton,
+  MenuItem,
   alpha,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -39,10 +40,17 @@ import type {
   AnotacaoRequest,
   ArquivoTarefa,
   Status,
+  TarefaRequest,
+  Tipo,
+  Desenvolvedor,
+  Versao,
 } from "../types";
 import { tarefaService } from "../services/tarefaService";
 import { anotacaoService } from "../services/anotacaoService";
 import { statusService } from "../services/statusService";
+import { tipoService } from "../services/tipoService";
+import { desenvolvedorService } from "../services/desenvolvedorService";
+import { versaoService } from "../services/versaoService";
 import ConfirmDialog from "../components/ConfirmDialog";
 import dayjs from "dayjs";
 
@@ -117,9 +125,14 @@ const InfoRow: React.FC<{
   icon: React.ReactNode;
   label: string;
   value?: React.ReactNode;
-}> = ({ icon, label, value }) => (
-  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, py: 0.75 }}>
-    <Box sx={{ color: "text.secondary", display: "flex", flexShrink: 0 }}>
+  editable?: boolean;
+  editing?: boolean;
+  onClick?: () => void;
+}> = ({ icon, label, value, editable = false, editing = false, onClick }) => (
+  <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5, py: 0.75 }}>
+    <Box
+      sx={{ color: "text.secondary", display: "flex", flexShrink: 0, mt: 0.35 }}
+    >
       {icon}
     </Box>
     <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -135,16 +148,73 @@ const InfoRow: React.FC<{
       >
         {label}
       </Typography>
-      <Box sx={{ mt: 0.25 }}>
+      <Box
+        onClick={editable && !editing ? onClick : undefined}
+        sx={{
+          mt: 0.25,
+          borderRadius: 1.5,
+          px: editable && !editing ? 1 : 0,
+          py: editable && !editing ? 0.5 : 0,
+          cursor: editable && !editing ? "pointer" : "default",
+          transition: "background-color 0.2s ease",
+          "&:hover":
+            editable && !editing
+              ? { bgcolor: alpha("#00d4ff", 0.06) }
+              : undefined,
+        }}
+      >
         {value ?? (
           <Typography variant="body2" color="text.disabled">
-            —
+            {editable ? "Clique para editar" : "—"}
           </Typography>
         )}
       </Box>
     </Box>
   </Box>
 );
+
+type EditableField =
+  | "codigo"
+  | "descricao"
+  | "tipoId"
+  | "statusId"
+  | "desenvolvedorId"
+  | "versaoId"
+  | "branchNome"
+  | "ambiente"
+  | "dataEntrega"
+  | "dataFinalizacao"
+  | "prioridade"
+  | "percentualCompleto";
+
+const isStatusFinalizado = (descricao?: string): boolean => {
+  const normalizado = descricao?.trim().toLowerCase();
+  return normalizado === "finalizado" || normalizado === "finalizada";
+};
+
+const formatDateForInput = (value?: string | null): string => {
+  if (!value) {
+    return "";
+  }
+
+  const date = dayjs(value);
+  return date.isValid() ? date.format("YYYY-MM-DD") : "";
+};
+
+const buildTarefaPayload = (source: Tarefa): TarefaRequest => ({
+  codigo: source.codigo,
+  descricao: source.descricao,
+  tipoId: source.tipo.id,
+  desenvolvedorId: source.desenvolvedor?.id ?? null,
+  statusId: source.status.id,
+  versaoId: source.versao?.id ?? null,
+  prioridade: source.prioridade,
+  percentualCompleto: source.percentualCompleto,
+  branchNome: source.branchNome ?? "",
+  dataEntrega: formatDateForInput(source.dataEntrega) || null,
+  dataFinalizacao: formatDateForInput(source.dataFinalizacao) || null,
+  ambiente: source.ambiente ?? "",
+});
 
 const TarefaDetalhe: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -153,6 +223,14 @@ const TarefaDetalhe: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [status, setStatus] = useState<Status[]>([]);
+  const [tipos, setTipos] = useState<Tipo[]>([]);
+  const [desenvolvedores, setDesenvolvedores] = useState<Desenvolvedor[]>([]);
+  const [versoes, setVersoes] = useState<Versao[]>([]);
+  const [editingField, setEditingField] = useState<EditableField | null>(null);
+  const [draft, setDraft] = useState<TarefaRequest | null>(null);
+  const [savingField, setSavingField] = useState<EditableField | null>(null);
+  const [inlineError, setInlineError] = useState("");
+  const [inlineSuccess, setInlineSuccess] = useState("");
 
   const [anotacoes, setAnotacoes] = useState<Anotacao[]>([]);
   const [anotacaoDialog, setAnotacaoDialog] = useState(false);
@@ -199,10 +277,24 @@ const TarefaDetalhe: React.FC = () => {
   }, [id]);
 
   useEffect(() => {
-    statusService
-      .listar()
-      .then(setStatus)
-      .catch(() => setStatus([]));
+    Promise.all([
+      statusService.listar(),
+      tipoService.listar(),
+      desenvolvedorService.listarAtivos(),
+      versaoService.listar(),
+    ])
+      .then(([statusList, tiposList, desenvolvedoresList, versoesList]) => {
+        setStatus(statusList);
+        setTipos(tiposList);
+        setDesenvolvedores(desenvolvedoresList);
+        setVersoes(versoesList);
+      })
+      .catch(() => {
+        setStatus([]);
+        setTipos([]);
+        setDesenvolvedores([]);
+        setVersoes([]);
+      });
   }, []);
 
   const statusColorMap = useMemo(
@@ -215,6 +307,127 @@ const TarefaDetalhe: React.FC = () => {
         }, {}),
     [status],
   );
+
+  const handleStartEditField = (field: EditableField) => {
+    if (!tarefa) {
+      return;
+    }
+
+    setEditingField(field);
+    setDraft(buildTarefaPayload(tarefa));
+    setInlineError("");
+    setInlineSuccess("");
+  };
+
+  const handleCancelEditField = () => {
+    setEditingField(null);
+    setDraft(null);
+    setInlineError("");
+  };
+
+  const updateDraftValue = <K extends keyof TarefaRequest>(
+    field: K,
+    value: TarefaRequest[K],
+  ) => {
+    if (!tarefa) {
+      return;
+    }
+
+    setDraft(
+      (prev) =>
+        ({
+          ...(prev ?? buildTarefaPayload(tarefa)),
+          [field]: value,
+        }) as TarefaRequest,
+    );
+  };
+
+  const handleSaveEditField = async (nextDraft?: TarefaRequest) => {
+    if (!tarefa || !editingField) {
+      return;
+    }
+
+    const payloadBase = nextDraft ?? draft ?? buildTarefaPayload(tarefa);
+    const payload: TarefaRequest = {
+      ...payloadBase,
+      codigo: payloadBase.codigo.trim(),
+      descricao: payloadBase.descricao.trim(),
+      tipoId: Number(payloadBase.tipoId),
+      statusId: Number(payloadBase.statusId),
+      desenvolvedorId: payloadBase.desenvolvedorId || null,
+      versaoId: payloadBase.versaoId || null,
+      prioridade: Number(payloadBase.prioridade),
+      percentualCompleto: Number(payloadBase.percentualCompleto),
+      branchNome: payloadBase.branchNome?.trim() ?? "",
+      ambiente: payloadBase.ambiente?.trim() ?? "",
+      dataEntrega: payloadBase.dataEntrega || null,
+      dataFinalizacao: payloadBase.dataFinalizacao || null,
+    };
+
+    if (
+      !payload.codigo ||
+      !payload.descricao ||
+      !payload.tipoId ||
+      !payload.statusId
+    ) {
+      setInlineError("Preencha os campos obrigatórios antes de salvar.");
+      return;
+    }
+
+    if (payload.prioridade < 1 || payload.prioridade > 10) {
+      setInlineError("A prioridade deve estar entre 1 e 10.");
+      return;
+    }
+
+    if (payload.percentualCompleto < 0 || payload.percentualCompleto > 100) {
+      setInlineError("O progresso deve estar entre 0 e 100%.");
+      return;
+    }
+
+    const statusFinalizado = status.find((item) =>
+      isStatusFinalizado(item.descricao),
+    );
+
+    if (
+      statusFinalizado &&
+      payload.statusId === statusFinalizado.id &&
+      !payload.ambiente
+    ) {
+      setInlineError("Ambiente é obrigatório quando o status é Finalizado.");
+      return;
+    }
+
+    setSavingField(editingField);
+    try {
+      await tarefaService.atualizar(tarefa.id, payload);
+      await carregar();
+      setEditingField(null);
+      setDraft(null);
+      setInlineError("");
+      setInlineSuccess("Campo atualizado com sucesso.");
+    } catch (e: unknown) {
+      setInlineSuccess("");
+      setInlineError(
+        e instanceof Error ? e.message : "Erro ao atualizar o campo.",
+      );
+    } finally {
+      setSavingField(null);
+    }
+  };
+
+  const handleInlineEditorKeyDown = (
+    event: React.KeyboardEvent<HTMLDivElement>,
+  ) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void handleSaveEditField();
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      handleCancelEditField();
+    }
+  };
 
   const handleAbrirAnotacao = (anot?: Anotacao) => {
     setEditAnotacao(anot ?? null);
@@ -396,49 +609,161 @@ const TarefaDetalhe: React.FC = () => {
               flexWrap: "wrap",
             }}
           >
-            <Typography
-              sx={{
-                fontFamily: "monospace",
-                color: "primary.main",
-                fontWeight: 700,
-                fontSize: "1.1rem",
-              }}
-            >
-              {tarefa.codigo}
-            </Typography>
-            <Chip
-              label={tarefa.status.descricao}
-              size="small"
-              sx={{
-                bgcolor: alpha(statusColor, 0.15),
-                color: statusColor,
-                border: `1px solid ${alpha(statusColor, 0.3)}`,
-                fontWeight: 700,
-              }}
-            />
-            <Chip
-              label={tarefa.tipo.descricao}
-              size="small"
-              sx={{
-                bgcolor: alpha(tipoColor, 0.15),
-                color: tipoColor,
-                border: `1px solid ${alpha(tipoColor, 0.3)}`,
-                fontWeight: 700,
-              }}
-            />
+            {editingField === "codigo" ? (
+              <TextField
+                size="small"
+                autoFocus
+                value={draft?.codigo ?? tarefa.codigo}
+                onChange={(e) => updateDraftValue("codigo", e.target.value)}
+                onBlur={() => void handleSaveEditField()}
+                onKeyDown={handleInlineEditorKeyDown}
+                disabled={savingField === "codigo"}
+                sx={{ minWidth: 140 }}
+              />
+            ) : (
+              <Typography
+                onClick={() => handleStartEditField("codigo")}
+                sx={{
+                  fontFamily: "monospace",
+                  color: "primary.main",
+                  fontWeight: 700,
+                  fontSize: "1.1rem",
+                  cursor: "pointer",
+                  borderRadius: 1,
+                  px: 0.5,
+                  py: 0.25,
+                  "&:hover": {
+                    bgcolor: alpha("#00d4ff", 0.08),
+                  },
+                }}
+              >
+                {tarefa.codigo}
+              </Typography>
+            )}
+
+            {editingField === "statusId" ? (
+              <TextField
+                select
+                size="small"
+                autoFocus
+                value={draft?.statusId ?? tarefa.status.id}
+                onChange={(e) => {
+                  const nextDraft: TarefaRequest = {
+                    ...(draft ?? buildTarefaPayload(tarefa)),
+                    statusId: Number(e.target.value),
+                  };
+                  setDraft(nextDraft);
+                  void handleSaveEditField(nextDraft);
+                }}
+                disabled={savingField === "statusId"}
+                sx={{ minWidth: 180 }}
+              >
+                {status.map((item) => (
+                  <MenuItem key={item.id} value={item.id}>
+                    {item.descricao}
+                  </MenuItem>
+                ))}
+              </TextField>
+            ) : (
+              <Chip
+                label={tarefa.status.descricao}
+                size="small"
+                onClick={() => handleStartEditField("statusId")}
+                sx={{
+                  bgcolor: alpha(statusColor, 0.15),
+                  color: statusColor,
+                  border: `1px solid ${alpha(statusColor, 0.3)}`,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              />
+            )}
+
+            {editingField === "tipoId" ? (
+              <TextField
+                select
+                size="small"
+                autoFocus
+                value={draft?.tipoId ?? tarefa.tipo.id}
+                onChange={(e) => {
+                  const nextDraft: TarefaRequest = {
+                    ...(draft ?? buildTarefaPayload(tarefa)),
+                    tipoId: Number(e.target.value),
+                  };
+                  setDraft(nextDraft);
+                  void handleSaveEditField(nextDraft);
+                }}
+                disabled={savingField === "tipoId"}
+                sx={{ minWidth: 180 }}
+              >
+                {tipos.map((item) => (
+                  <MenuItem key={item.id} value={item.id}>
+                    {item.descricao}
+                  </MenuItem>
+                ))}
+              </TextField>
+            ) : (
+              <Chip
+                label={tarefa.tipo.descricao}
+                size="small"
+                onClick={() => handleStartEditField("tipoId")}
+                sx={{
+                  bgcolor: alpha(tipoColor, 0.15),
+                  color: tipoColor,
+                  border: `1px solid ${alpha(tipoColor, 0.3)}`,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              />
+            )}
           </Box>
-          <Typography variant="h5" fontWeight={600} sx={{ mt: 0.5 }}>
-            {tarefa.descricao}
-          </Typography>
+
+          {editingField === "descricao" ? (
+            <TextField
+              fullWidth
+              size="small"
+              autoFocus
+              value={draft?.descricao ?? tarefa.descricao}
+              onChange={(e) => updateDraftValue("descricao", e.target.value)}
+              onBlur={() => void handleSaveEditField()}
+              onKeyDown={handleInlineEditorKeyDown}
+              disabled={savingField === "descricao"}
+              sx={{ mt: 1 }}
+            />
+          ) : (
+            <Typography
+              variant="h5"
+              fontWeight={600}
+              sx={{
+                mt: 0.5,
+                borderRadius: 1,
+                px: 0.5,
+                py: 0.25,
+                cursor: "pointer",
+                "&:hover": {
+                  bgcolor: alpha("#00d4ff", 0.05),
+                },
+              }}
+              onClick={() => handleStartEditField("descricao")}
+            >
+              {tarefa.descricao}
+            </Typography>
+          )}
         </Box>
-        <Button
-          variant="outlined"
-          startIcon={<EditIcon />}
-          onClick={() => navigate("/tarefas", { state: { editId: tarefa.id } })}
-        >
-          Editar
-        </Button>
       </Box>
+
+      <Collapse in={!!inlineError || !!inlineSuccess}>
+        <Alert
+          severity={inlineError ? "error" : "success"}
+          sx={{ mb: 2 }}
+          onClose={() => {
+            setInlineError("");
+            setInlineSuccess("");
+          }}
+        >
+          {inlineError || inlineSuccess}
+        </Alert>
+      </Collapse>
 
       <Grid container spacing={3}>
         {/* Main info */}
@@ -463,12 +788,52 @@ const TarefaDetalhe: React.FC = () => {
                   <InfoRow
                     icon={<PersonIcon fontSize="small" />}
                     label="Desenvolvedor"
+                    editable
+                    editing={editingField === "desenvolvedorId"}
+                    onClick={() => handleStartEditField("desenvolvedorId")}
                     value={
-                      tarefa.desenvolvedor ? (
-                        <Typography variant="body2">
-                          {tarefa.desenvolvedor.nome}
+                      editingField === "desenvolvedorId" ? (
+                        <TextField
+                          select
+                          size="small"
+                          fullWidth
+                          autoFocus
+                          value={
+                            draft?.desenvolvedorId ??
+                            tarefa.desenvolvedor?.id ??
+                            ""
+                          }
+                          onChange={(e) => {
+                            const nextDraft: TarefaRequest = {
+                              ...(draft ?? buildTarefaPayload(tarefa)),
+                              desenvolvedorId: e.target.value
+                                ? Number(e.target.value)
+                                : null,
+                            };
+                            setDraft(nextDraft);
+                            void handleSaveEditField(nextDraft);
+                          }}
+                          disabled={savingField === "desenvolvedorId"}
+                        >
+                          <MenuItem value="">Nenhum</MenuItem>
+                          {desenvolvedores.map((item) => (
+                            <MenuItem key={item.id} value={item.id}>
+                              {item.nome}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      ) : (
+                        <Typography
+                          variant="body2"
+                          color={
+                            tarefa.desenvolvedor
+                              ? "text.primary"
+                              : "text.disabled"
+                          }
+                        >
+                          {tarefa.desenvolvedor?.nome || "Clique para editar"}
                         </Typography>
-                      ) : undefined
+                      )
                     }
                   />
                 </Grid>
@@ -476,12 +841,46 @@ const TarefaDetalhe: React.FC = () => {
                   <InfoRow
                     icon={<LabelIcon fontSize="small" />}
                     label="Versão"
+                    editable
+                    editing={editingField === "versaoId"}
+                    onClick={() => handleStartEditField("versaoId")}
                     value={
-                      tarefa.versao ? (
-                        <Typography variant="body2">
-                          {tarefa.versao.numeroVersao}
+                      editingField === "versaoId" ? (
+                        <TextField
+                          select
+                          size="small"
+                          fullWidth
+                          autoFocus
+                          value={draft?.versaoId ?? tarefa.versao?.id ?? ""}
+                          onChange={(e) => {
+                            const nextDraft: TarefaRequest = {
+                              ...(draft ?? buildTarefaPayload(tarefa)),
+                              versaoId: e.target.value
+                                ? Number(e.target.value)
+                                : null,
+                            };
+                            setDraft(nextDraft);
+                            void handleSaveEditField(nextDraft);
+                          }}
+                          disabled={savingField === "versaoId"}
+                        >
+                          <MenuItem value="">Nenhuma</MenuItem>
+                          {versoes.map((item) => (
+                            <MenuItem key={item.id} value={item.id}>
+                              {item.numeroVersao}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      ) : (
+                        <Typography
+                          variant="body2"
+                          color={
+                            tarefa.versao ? "text.primary" : "text.disabled"
+                          }
+                        >
+                          {tarefa.versao?.numeroVersao || "Clique para editar"}
                         </Typography>
-                      ) : undefined
+                      )
                     }
                   />
                 </Grid>
@@ -489,15 +888,38 @@ const TarefaDetalhe: React.FC = () => {
                   <InfoRow
                     icon={<AccountTreeIcon fontSize="small" />}
                     label="Branch"
+                    editable
+                    editing={editingField === "branchNome"}
+                    onClick={() => handleStartEditField("branchNome")}
                     value={
-                      tarefa.branchNome ? (
+                      editingField === "branchNome" ? (
+                        <TextField
+                          size="small"
+                          fullWidth
+                          autoFocus
+                          value={draft?.branchNome ?? tarefa.branchNome ?? ""}
+                          onChange={(e) =>
+                            updateDraftValue("branchNome", e.target.value)
+                          }
+                          onBlur={() => void handleSaveEditField()}
+                          onKeyDown={handleInlineEditorKeyDown}
+                          disabled={savingField === "branchNome"}
+                        />
+                      ) : (
                         <Typography
                           variant="body2"
-                          sx={{ fontFamily: "monospace", color: "#a855f7" }}
+                          sx={{
+                            fontFamily: tarefa.branchNome
+                              ? "monospace"
+                              : "inherit",
+                            color: tarefa.branchNome
+                              ? "#a855f7"
+                              : "text.disabled",
+                          }}
                         >
-                          {tarefa.branchNome}
+                          {tarefa.branchNome || "Clique para editar"}
                         </Typography>
-                      ) : undefined
+                      )
                     }
                   />
                 </Grid>
@@ -505,12 +927,33 @@ const TarefaDetalhe: React.FC = () => {
                   <InfoRow
                     icon={<CloudIcon fontSize="small" />}
                     label="Ambiente"
+                    editable
+                    editing={editingField === "ambiente"}
+                    onClick={() => handleStartEditField("ambiente")}
                     value={
-                      tarefa.ambiente ? (
-                        <Typography variant="body2">
-                          {tarefa.ambiente}
+                      editingField === "ambiente" ? (
+                        <TextField
+                          size="small"
+                          fullWidth
+                          autoFocus
+                          value={draft?.ambiente ?? tarefa.ambiente ?? ""}
+                          onChange={(e) =>
+                            updateDraftValue("ambiente", e.target.value)
+                          }
+                          onBlur={() => void handleSaveEditField()}
+                          onKeyDown={handleInlineEditorKeyDown}
+                          disabled={savingField === "ambiente"}
+                        />
+                      ) : (
+                        <Typography
+                          variant="body2"
+                          color={
+                            tarefa.ambiente ? "text.primary" : "text.disabled"
+                          }
+                        >
+                          {tarefa.ambiente || "Clique para editar"}
                         </Typography>
-                      ) : undefined
+                      )
                     }
                   />
                 </Grid>
@@ -529,12 +972,41 @@ const TarefaDetalhe: React.FC = () => {
                   <InfoRow
                     icon={<CalendarTodayIcon fontSize="small" />}
                     label="Data de Entrega"
+                    editable
+                    editing={editingField === "dataEntrega"}
+                    onClick={() => handleStartEditField("dataEntrega")}
                     value={
-                      tarefa.dataEntrega ? (
-                        <Typography variant="body2">
-                          {dayjs(tarefa.dataEntrega).format("DD/MM/YYYY")}
+                      editingField === "dataEntrega" ? (
+                        <TextField
+                          type="date"
+                          size="small"
+                          fullWidth
+                          autoFocus
+                          value={
+                            draft?.dataEntrega ??
+                            formatDateForInput(tarefa.dataEntrega)
+                          }
+                          onChange={(e) =>
+                            updateDraftValue("dataEntrega", e.target.value)
+                          }
+                          onBlur={() => void handleSaveEditField()}
+                          onKeyDown={handleInlineEditorKeyDown}
+                          disabled={savingField === "dataEntrega"}
+                        />
+                      ) : (
+                        <Typography
+                          variant="body2"
+                          color={
+                            tarefa.dataEntrega
+                              ? "text.primary"
+                              : "text.disabled"
+                          }
+                        >
+                          {tarefa.dataEntrega
+                            ? dayjs(tarefa.dataEntrega).format("DD/MM/YYYY")
+                            : "Clique para editar"}
                         </Typography>
-                      ) : undefined
+                      )
                     }
                   />
                 </Grid>
@@ -542,12 +1014,41 @@ const TarefaDetalhe: React.FC = () => {
                   <InfoRow
                     icon={<CalendarTodayIcon fontSize="small" />}
                     label="Data de Finalização"
+                    editable
+                    editing={editingField === "dataFinalizacao"}
+                    onClick={() => handleStartEditField("dataFinalizacao")}
                     value={
-                      tarefa.dataFinalizacao ? (
-                        <Typography variant="body2">
-                          {dayjs(tarefa.dataFinalizacao).format("DD/MM/YYYY")}
+                      editingField === "dataFinalizacao" ? (
+                        <TextField
+                          type="date"
+                          size="small"
+                          fullWidth
+                          autoFocus
+                          value={
+                            draft?.dataFinalizacao ??
+                            formatDateForInput(tarefa.dataFinalizacao)
+                          }
+                          onChange={(e) =>
+                            updateDraftValue("dataFinalizacao", e.target.value)
+                          }
+                          onBlur={() => void handleSaveEditField()}
+                          onKeyDown={handleInlineEditorKeyDown}
+                          disabled={savingField === "dataFinalizacao"}
+                        />
+                      ) : (
+                        <Typography
+                          variant="body2"
+                          color={
+                            tarefa.dataFinalizacao
+                              ? "text.primary"
+                              : "text.disabled"
+                          }
+                        >
+                          {tarefa.dataFinalizacao
+                            ? dayjs(tarefa.dataFinalizacao).format("DD/MM/YYYY")
+                            : "Clique para editar"}
                         </Typography>
-                      ) : undefined
+                      )
                     }
                   />
                 </Grid>
@@ -556,24 +1057,66 @@ const TarefaDetalhe: React.FC = () => {
               <Divider sx={{ my: 2.5, borderColor: alpha("#00d4ff", 0.1) }} />
 
               {/* Progress */}
-              <Box>
+              <Box
+                sx={{
+                  borderRadius: 2,
+                  px: 1,
+                  py: 0.75,
+                  cursor:
+                    editingField === "percentualCompleto"
+                      ? "default"
+                      : "pointer",
+                  "&:hover":
+                    editingField === "percentualCompleto"
+                      ? undefined
+                      : { bgcolor: alpha("#00d4ff", 0.04) },
+                }}
+                onClick={() =>
+                  editingField !== "percentualCompleto" &&
+                  handleStartEditField("percentualCompleto")
+                }
+              >
                 <Box
                   sx={{
                     display: "flex",
                     justifyContent: "space-between",
+                    alignItems: "center",
                     mb: 1,
+                    gap: 1,
                   }}
                 >
                   <Typography variant="body2" color="text.secondary">
                     Progresso
                   </Typography>
-                  <Typography
-                    variant="body2"
-                    fontWeight={700}
-                    color="primary.main"
-                  >
-                    {tarefa.percentualCompleto}%
-                  </Typography>
+                  {editingField === "percentualCompleto" ? (
+                    <TextField
+                      type="number"
+                      size="small"
+                      autoFocus
+                      value={
+                        draft?.percentualCompleto ?? tarefa.percentualCompleto
+                      }
+                      onChange={(e) =>
+                        updateDraftValue(
+                          "percentualCompleto",
+                          Number(e.target.value),
+                        )
+                      }
+                      onBlur={() => void handleSaveEditField()}
+                      onKeyDown={handleInlineEditorKeyDown}
+                      disabled={savingField === "percentualCompleto"}
+                      inputProps={{ min: 0, max: 100 }}
+                      sx={{ width: 96 }}
+                    />
+                  ) : (
+                    <Typography
+                      variant="body2"
+                      fontWeight={700}
+                      color="primary.main"
+                    >
+                      {tarefa.percentualCompleto}%
+                    </Typography>
+                  )}
                 </Box>
                 <LinearProgress
                   variant="determinate"
@@ -594,25 +1137,44 @@ const TarefaDetalhe: React.FC = () => {
                 <Typography variant="body2" color="text.secondary">
                   Prioridade:
                 </Typography>
-                <Box
-                  sx={{
-                    px: 1.5,
-                    py: 0.25,
-                    borderRadius: 2,
-                    bgcolor: alpha(PRIORIDADE_COLOR(tarefa.prioridade), 0.15),
-                    border: `1px solid ${alpha(PRIORIDADE_COLOR(tarefa.prioridade), 0.4)}`,
-                    color: PRIORIDADE_COLOR(tarefa.prioridade),
-                    fontWeight: 700,
-                    fontSize: "0.85rem",
-                  }}
-                >
-                  {tarefa.prioridade}/10{" "}
-                  {tarefa.prioridade >= 8
-                    ? "🔴"
-                    : tarefa.prioridade >= 5
-                      ? "🟡"
-                      : "🟢"}
-                </Box>
+                {editingField === "prioridade" ? (
+                  <TextField
+                    type="number"
+                    size="small"
+                    autoFocus
+                    value={draft?.prioridade ?? tarefa.prioridade}
+                    onChange={(e) =>
+                      updateDraftValue("prioridade", Number(e.target.value))
+                    }
+                    onBlur={() => void handleSaveEditField()}
+                    onKeyDown={handleInlineEditorKeyDown}
+                    disabled={savingField === "prioridade"}
+                    inputProps={{ min: 1, max: 10 }}
+                    sx={{ width: 96 }}
+                  />
+                ) : (
+                  <Box
+                    onClick={() => handleStartEditField("prioridade")}
+                    sx={{
+                      px: 1.5,
+                      py: 0.25,
+                      borderRadius: 2,
+                      bgcolor: alpha(PRIORIDADE_COLOR(tarefa.prioridade), 0.15),
+                      border: `1px solid ${alpha(PRIORIDADE_COLOR(tarefa.prioridade), 0.4)}`,
+                      color: PRIORIDADE_COLOR(tarefa.prioridade),
+                      fontWeight: 700,
+                      fontSize: "0.85rem",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {tarefa.prioridade}/10{" "}
+                    {tarefa.prioridade >= 8
+                      ? "🔴"
+                      : tarefa.prioridade >= 5
+                        ? "🟡"
+                        : "🟢"}
+                  </Box>
+                )}
               </Box>
             </CardContent>
           </Card>

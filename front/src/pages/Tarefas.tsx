@@ -61,12 +61,12 @@ const STATUS_COLOR_LIST = [
   "#00e676",
   "#02a7e3",
   "#ffab00",
-  "#14b8a6",
+  "#02a626",
   "#f97316",
   "#6366f1",
   "#ec4899",
   "#84cc16",
-  "#09c8c8",
+  "#049b9b",
   "#eab308",
 ];
 
@@ -1141,7 +1141,7 @@ const Tarefas: React.FC = () => {
                               </span>
                               <span
                                 style={{
-                                  color: "#242424ac",
+                                  color: "text.secondary",
                                   fontSize: "0.85rem",
                                   marginRight: 8,
                                 }}
