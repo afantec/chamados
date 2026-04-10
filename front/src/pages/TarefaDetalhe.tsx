@@ -55,17 +55,17 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import dayjs from "dayjs";
 
 const STATUS_COLOR_LIST = [
-  "#00d4ff",
-  "#ff1744",
+  "#069ee5",
+  "#c43d4ae3",
   "#00e676",
-  "#a855f7",
+  "#02a7e3",
   "#ffab00",
-  "#14b8a6",
+  "#02a626",
   "#f97316",
   "#6366f1",
   "#ec4899",
   "#84cc16",
-  "#06b6d4",
+  "#049b9b",
   "#eab308",
 ];
 
@@ -95,16 +95,16 @@ const getStatusColor = (
 };
 
 const TIPO_COLORS: Record<string, string> = {
-  Bug: "#ff1744",
-  Melhoria: "#00d4ff",
-  "Suporte Técnico": "#ffab00",
-  "Evolução de Versão": "#a855f7",
+  Bug: "#fe1919",
+  Melhoria: "#0a63df",
+  Suporte: "#f5ac03",
+  Versão: "#84e603",
 };
 
 const PRIORIDADE_COLOR = (p: number) => {
-  if (p >= 8) return "#ff1744";
+  if (p >= 8) return "#00e676";
   if (p >= 5) return "#ffab00";
-  return "#00e676";
+  return "#ff1744";
 };
 
 const EXTENSOES_PERMITIDAS = [
