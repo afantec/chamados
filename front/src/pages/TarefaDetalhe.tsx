@@ -641,44 +641,6 @@ const TarefaDetalhe: React.FC = () => {
               </Typography>
             )}
 
-            {editingField === "statusId" ? (
-              <TextField
-                select
-                size="small"
-                autoFocus
-                value={draft?.statusId ?? tarefa.status.id}
-                onChange={(e) => {
-                  const nextDraft: TarefaRequest = {
-                    ...(draft ?? buildTarefaPayload(tarefa)),
-                    statusId: Number(e.target.value),
-                  };
-                  setDraft(nextDraft);
-                  void handleSaveEditField(nextDraft);
-                }}
-                disabled={savingField === "statusId"}
-                sx={{ minWidth: 180 }}
-              >
-                {status.map((item) => (
-                  <MenuItem key={item.id} value={item.id}>
-                    {item.descricao}
-                  </MenuItem>
-                ))}
-              </TextField>
-            ) : (
-              <Chip
-                label={tarefa.status.descricao}
-                size="small"
-                onClick={() => handleStartEditField("statusId")}
-                sx={{
-                  bgcolor: alpha(statusColor, 0.15),
-                  color: statusColor,
-                  border: `1px solid ${alpha(statusColor, 0.3)}`,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              />
-            )}
-
             {editingField === "tipoId" ? (
               <TextField
                 select
@@ -704,13 +666,50 @@ const TarefaDetalhe: React.FC = () => {
               </TextField>
             ) : (
               <Chip
-                label={tarefa.tipo.descricao}
+                label={`Tipo: ${tarefa.tipo?.descricao || "—"}`}
                 size="small"
                 onClick={() => handleStartEditField("tipoId")}
                 sx={{
                   bgcolor: alpha(tipoColor, 0.15),
                   color: tipoColor,
                   border: `1px solid ${alpha(tipoColor, 0.3)}`,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              />
+            )}
+            {editingField === "statusId" ? (
+              <TextField
+                select
+                size="small"
+                autoFocus
+                value={draft?.statusId ?? tarefa.status.id}
+                onChange={(e) => {
+                  const nextDraft: TarefaRequest = {
+                    ...(draft ?? buildTarefaPayload(tarefa)),
+                    statusId: Number(e.target.value),
+                  };
+                  setDraft(nextDraft);
+                  void handleSaveEditField(nextDraft);
+                }}
+                disabled={savingField === "statusId"}
+                sx={{ minWidth: 180 }}
+              >
+                {status.map((item) => (
+                  <MenuItem key={item.id} value={item.id}>
+                    {item.descricao}
+                  </MenuItem>
+                ))}
+              </TextField>
+            ) : (
+              <Chip
+                label={`Status: ${tarefa.status?.descricao || "—"}`}
+                size="small"
+                onClick={() => handleStartEditField("statusId")}
+                sx={{
+                  bgcolor: alpha(statusColor, 0.15),
+                  color: statusColor,
+                  border: `1px solid ${alpha(statusColor, 0.3)}`,
                   fontWeight: 700,
                   cursor: "pointer",
                 }}

@@ -57,13 +57,13 @@ import dayjs, { Dayjs } from "dayjs";
 
 const STATUS_COLOR_LIST = [
   "#069ee5",
-  "#c43d4ae3",
+  "#6366f1",
   "#00e676",
   "#02a7e3",
   "#ffab00",
   "#02a626",
   "#f97316",
-  "#6366f1",
+  "#c43d4ae3",
   "#ec4899",
   "#84cc16",
   "#049b9b",
@@ -100,6 +100,7 @@ const TIPO_COLORS: Record<string, string> = {
   Melhoria: "#0a63df",
   Suporte: "#f5ac03",
   Versão: "#84e603",
+  "Em Definição": "#94a3b8",
 };
 
 const PRIORIDADE_COLOR = (p: number) => {
@@ -1149,6 +1150,17 @@ const Tarefas: React.FC = () => {
                                 {tarefa.descricao}
                               </span>
                             </Typography>
+                            <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                Criada em{" "}
+                                {dayjs(tarefa.dataCriacao).isValid()
+                                  ? dayjs(tarefa.dataCriacao).format(
+                                      "DD/MM/YYYY",
+                                    )
+                                  : "—"}
+                              </Typography>
                             <Box
                               sx={{
                                 display: "flex",
@@ -1158,6 +1170,17 @@ const Tarefas: React.FC = () => {
                                 alignItems: "center",
                               }}
                             >
+                              <Chip
+                                label={`Tipo: ${tarefa.tipo?.descricao || "—"}`}
+                                size="small"
+                                sx={{
+                                  bgcolor: alpha(tipoCor, 0.15),
+                                  color: tipoCor,
+                                  border: `1px solid ${alpha(tipoCor, 0.3)}`,
+                                  fontWeight: 600,
+                                  fontSize: "0.68rem",
+                                }}
+                              />
                               <Chip
                                 label={`Status: ${tarefa.status?.descricao || "—"}`}
                                 size="small"
@@ -1170,36 +1193,25 @@ const Tarefas: React.FC = () => {
                                   fontSize: "0.7rem",
                                 }}
                               />
-
-                              <Chip
-                                label={`Tipo: ${tarefa.tipo?.descricao || "—"}`}
-                                size="small"
-                                sx={{
-                                  bgcolor: alpha(tipoCor, 0.15),
-                                  color: tipoCor,
-                                  border: `1px solid ${alpha(tipoCor, 0.3)}`,
-                                  fontWeight: 600,
-                                  fontSize: "0.68rem",
-                                }}
-                              />
                               <Typography
                                 variant="caption"
                                 color="text.secondary"
+                                fontSize={"12px"}
+                                fontWeight={"900"}
+                                fontStyle={"italic"}
                               >
                                 Desenvolvedor:{" "}
-                                {tarefa.desenvolvedor?.nome || "—"}
                               </Typography>
                               <Typography
                                 variant="caption"
                                 color="text.secondary"
+                                fontSize={"16px"}
+                                fontWeight={"900"}
+                                fontStyle={"italic"}
                               >
-                                Criação:{" "}
-                                {dayjs(tarefa.dataCriacao).isValid()
-                                  ? dayjs(tarefa.dataCriacao).format(
-                                      "DD/MM/YYYY",
-                                    )
-                                  : "—"}
+                                {tarefa.desenvolvedor?.nome || "—"}
                               </Typography>
+                              
                             </Box>
                           </Box>
 
