@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -18,17 +18,47 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import BugReportIcon from "@mui/icons-material/BugReport";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-import type { Tarefa } from "../types";
+import type { Status, Tarefa } from "../types";
 import { tarefaService } from "../services/tarefaService";
 
-const STATUS_COLORS: Record<string, string> = {
-  Aberto: "#00d4ff",
-  "Em Andamento": "#ffab00",
-  "Em Revisão": "#a855f7",
-  "Aguardando Aprovação": "#ff9800",
-  Finalizado: "#00e676",
-  Finalizada: "#00e676",
-  Cancelado: "#ff1744",
+const STATUS_COLOR_LIST = [
+  "#00d4ff",
+  "#ff1744",
+  "#00e676",
+  "#a855f7",
+  "#ffab00",
+  "#14b8a6",
+  "#f97316",
+  "#6366f1",
+  "#ec4899",
+  "#84cc16",
+  "#06b6d4",
+  "#eab308",
+];
+
+const FALLBACK_STATUS_COLOR = "#94a3b8";
+
+const getStatusColorByIndex = (index: number): string =>
+  STATUS_COLOR_LIST[index % STATUS_COLOR_LIST.length];
+
+const getStatusColor = (
+  statusItem?: Pick<Status, "id" | "descricao"> | null,
+  statusColorMap?: Record<number, string>,
+): string => {
+  if (statusItem?.id && statusColorMap?.[statusItem.id]) {
+    return statusColorMap[statusItem.id];
+  }
+
+  const descricao = statusItem?.descricao?.trim();
+  if (!descricao) {
+    return FALLBACK_STATUS_COLOR;
+  }
+
+  const hash = descricao
+    .split("")
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+
+  return getStatusColorByIndex(hash);
 };
 
 const PRIORIDADE_COLOR = (p: number) => {
@@ -116,6 +146,25 @@ const Dashboard: React.FC = () => {
       .then(setTarefas)
       .finally(() => setLoading(false));
   }, []);
+
+  const statusList = useMemo(
+    () =>
+      [
+        ...new Map(
+          tarefas.map((tarefa) => [tarefa.status.id, tarefa.status]),
+        ).values(),
+      ].sort((a, b) => a.id - b.id),
+    [tarefas],
+  );
+
+  const statusColorMap = useMemo(
+    () =>
+      statusList.reduce<Record<number, string>>((acc, item, index) => {
+        acc[item.id] = getStatusColorByIndex(index);
+        return acc;
+      }, {}),
+    [statusList],
+  );
 
   const statusCount = tarefas.reduce<Record<string, number>>((acc, t) => {
     const s = t.status.descricao;
@@ -235,39 +284,51 @@ const Dashboard: React.FC = () => {
                   ? Array.from({ length: 5 }).map((_, i) => (
                       <Skeleton key={i} height={40} sx={{ borderRadius: 1 }} />
                     ))
-                  : Object.entries(statusCount).map(([status, count]) => (
-                      <Box key={status}>
-                        <Box
-                          sx={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            mb: 0.5,
-                          }}
-                        >
-                          <Typography variant="body2" color="text.secondary">
-                            {status}
-                          </Typography>
-                          <Typography
-                            variant="body2"
-                            fontWeight={600}
-                            color={STATUS_COLORS[status] || "#94a3b8"}
+                  : Object.entries(statusCount).map(([status, count]) => {
+                      const statusItem = statusList.find(
+                        (item) => item.descricao === status,
+                      );
+                      const statusColor = getStatusColor(
+                        statusItem,
+                        statusColorMap,
+                      );
+
+                      return (
+                        <Box key={status}>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              mb: 0.5,
+                            }}
                           >
-                            {count}
-                          </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {status}
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              fontWeight={600}
+                              color={statusColor}
+                            >
+                              {count}
+                            </Typography>
+                          </Box>
+                          <LinearProgress
+                            variant="determinate"
+                            value={
+                              tarefas.length
+                                ? (count / tarefas.length) * 100
+                                : 0
+                            }
+                            sx={{
+                              "& .MuiLinearProgress-bar": {
+                                background: statusColor,
+                              },
+                            }}
+                          />
                         </Box>
-                        <LinearProgress
-                          variant="determinate"
-                          value={
-                            tarefas.length ? (count / tarefas.length) * 100 : 0
-                          }
-                          sx={{
-                            "& .MuiLinearProgress-bar": {
-                              background: STATUS_COLORS[status] || "#94a3b8",
-                            },
-                          }}
-                        />
-                      </Box>
-                    ))}
+                      );
+                    })}
               </Box>
             </CardContent>
           </Card>
@@ -304,104 +365,143 @@ const Dashboard: React.FC = () => {
                   ? Array.from({ length: 6 }).map((_, i) => (
                       <Skeleton key={i} height={56} sx={{ borderRadius: 2 }} />
                     ))
-                  : recentes.map((t) => (
-                      <Box
-                        key={t.id}
-                        onClick={() => navigate(`/tarefas/${t.id}`)}
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 2,
-                          p: 1.5,
-                          borderRadius: 2,
-                          border: `1px solid ${alpha("#00d4ff", 0.08)}`,
-                          cursor: "pointer",
-                          transition: "all 0.2s",
-                          "&:hover": {
-                            bgcolor: alpha("#00d4ff", 0.06),
-                            borderColor: alpha("#00d4ff", 0.2),
-                          },
-                        }}
-                      >
+                  : recentes.map((t) => {
+                      const statusCor = getStatusColor(
+                        t.status,
+                        statusColorMap,
+                      );
+
+                      return (
                         <Box
-                          sx={{
-                            width: 6,
-                            height: 32,
-                            borderRadius: 1,
-                            bgcolor: PRIORIDADE_COLOR(t.prioridade),
-                            flexShrink: 0,
-                          }}
-                        />
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography
-                            variant="body2"
-                            fontWeight={500}
-                            noWrap
-                            sx={{ color: "text.primary" }}
-                          >
-                            <span
-                              style={{
-                                color: "#00d4ff",
-                                marginRight: 8,
-                                fontFamily: "monospace",
-                              }}
-                            >
-                              {t.codigo}
-                            </span>
-                            {t.descricao}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {t.tipo.descricao} ·{" "}
-                            {t.desenvolvedor?.nome || "Não atribuído"}
-                          </Typography>
-                        </Box>
-                        <Box
-                          sx={{
+                          key={t.id}
+                          onClick={() => navigate(`/tarefas/${t.id}`)}
+                          sx={(theme) => ({
                             display: "flex",
-                            flexDirection: "column",
-                            alignItems: "flex-end",
-                            gap: 0.5,
-                          }}
+                            alignItems: "center",
+                            gap: 2,
+                            p: 1.5,
+                            borderRadius: 2,
+                            border: `1px solid ${alpha(statusCor, 0.1)}`,
+                            background:
+                              theme.palette.mode === "dark"
+                                ? `linear-gradient(90deg, ${alpha(statusCor, 0.05)} 0%, ${alpha(statusCor, 0.03)} 36%, ${alpha(theme.palette.background.paper, 0.985)} 100%)`
+                                : `linear-gradient(90deg, ${alpha(statusCor, 0.05)} 0%, ${alpha(statusCor, 0.03)} 36%, ${theme.palette.background.paper} 100%)`,
+                            boxShadow: `0 4px 12px ${alpha(statusCor, 0.1)}`,
+                            cursor: "pointer",
+                            position: "relative",
+                            overflow: "hidden",
+                            transition: "all 0.2s ease",
+                            "&::before": {
+                              content: '""',
+                              position: "absolute",
+                              inset: 0,
+                              background: `linear-gradient(135deg, ${alpha(statusCor, 0.04)} 0%, transparent 60%)`,
+                              pointerEvents: "none",
+                            },
+                            "&:hover": {
+                              transform: "translateY(-1px)",
+                              borderColor: alpha(statusCor, 0.7),
+                              boxShadow: `0 8px 18px ${alpha(statusCor, 0.3)}`,
+                            },
+                          })}
                         >
-                          <Chip
-                            label={t.status.descricao}
-                            size="small"
+                          <Box
                             sx={{
-                              bgcolor: alpha(
-                                STATUS_COLORS[t.status.descricao] || "#94a3b8",
-                                0.15,
-                              ),
-                              color:
-                                STATUS_COLORS[t.status.descricao] || "#94a3b8",
-                              border: `1px solid ${alpha(STATUS_COLORS[t.status.descricao] || "#94a3b8", 0.3)}`,
-                              fontWeight: 600,
-                              fontSize: "0.7rem",
+                              width: 6,
+                              height: 32,
+                              borderRadius: 1,
+                              bgcolor: statusCor,
+                              flexShrink: 0,
+                              boxShadow: `0 0 8px ${alpha(statusCor, 0.22)}`,
                             }}
                           />
                           <Box
                             sx={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 0.5,
-                              minWidth: 80,
+                              flex: 1,
+                              minWidth: 0,
+                              position: "relative",
+                              zIndex: 1,
                             }}
                           >
-                            <LinearProgress
-                              variant="determinate"
-                              value={t.percentualCompleto}
-                              sx={{ flex: 1, height: 4 }}
-                            />
+                            <Typography
+                              variant="body2"
+                              fontWeight={600}
+                              noWrap
+                              sx={{ color: "text.primary" }}
+                            >
+                              <span
+                                style={{
+                                  color: statusCor,
+                                  marginRight: 8,
+                                  fontFamily: "monospace",
+                                }}
+                              >
+                                {t.codigo}
+                              </span>
+                              {t.descricao}
+                            </Typography>
                             <Typography
                               variant="caption"
                               color="text.secondary"
-                              sx={{ fontSize: "0.65rem" }}
                             >
-                              {t.percentualCompleto}%
+                              {t.tipo.descricao} ·{" "}
+                              {t.desenvolvedor?.nome || "Não atribuído"}
                             </Typography>
                           </Box>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "flex-end",
+                              gap: 0.5,
+                              position: "relative",
+                              zIndex: 1,
+                            }}
+                          >
+                            <Chip
+                              label={t.status.descricao}
+                              size="small"
+                              sx={{
+                                bgcolor: alpha(statusCor, 0.15),
+                                color: statusCor,
+                                border: `1px solid ${alpha(statusCor, 0.3)}`,
+                                fontWeight: 600,
+                                fontSize: "0.7rem",
+                              }}
+                            />
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 0.5,
+                                minWidth: 80,
+                              }}
+                            >
+                              <LinearProgress
+                                variant="determinate"
+                                value={t.percentualCompleto}
+                                sx={{
+                                  flex: 1,
+                                  height: 4,
+                                  borderRadius: 3,
+                                  bgcolor: alpha(statusCor, 0.18),
+                                  "& .MuiLinearProgress-bar": {
+                                    backgroundColor: statusCor,
+                                  },
+                                }}
+                              />
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ fontSize: "0.65rem" }}
+                              >
+                                {t.percentualCompleto}%
+                              </Typography>
+                            </Box>
+                          </Box>
                         </Box>
-                      </Box>
-                    ))}
+                      );
+                    })}
                 {!loading && tarefas.length === 0 && (
                   <Typography color="text.secondary" textAlign="center" py={4}>
                     Nenhuma tarefa cadastrada.

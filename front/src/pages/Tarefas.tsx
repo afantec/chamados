@@ -56,17 +56,17 @@ import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs, { Dayjs } from "dayjs";
 
 const STATUS_COLOR_LIST = [
-  "#00d4ff",
-  "#ff1744",
+  "#069ee5",
+  "#c43d4ae3",
   "#00e676",
-  "#a855f7",
+  "#02a7e3",
   "#ffab00",
   "#14b8a6",
   "#f97316",
   "#6366f1",
   "#ec4899",
   "#84cc16",
-  "#06b6d4",
+  "#09c8c8",
   "#eab308",
 ];
 
@@ -96,16 +96,16 @@ const getStatusColor = (
 };
 
 const TIPO_COLORS: Record<string, string> = {
-  Bug: "#ff1744",
-  Melhoria: "#00d4ff",
-  "Suporte Técnico": "#ffab00",
-  "Evolução de Versão": "#a855f7",
+  Bug: "#fe1919",
+  Melhoria: "#0a63df",
+  Suporte: "#f5ac03",
+  Versão: "#84e603",
 };
 
 const PRIORIDADE_COLOR = (p: number) => {
-  if (p >= 8) return "#ff1744";
+  if (p >= 8) return "#00e676";
   if (p >= 5) return "#ffab00";
-  return "#00e676";
+  return "#ff1744";
 };
 
 const isStatusFinalizado = (descricao?: string): boolean => {
@@ -768,10 +768,11 @@ const Tarefas: React.FC = () => {
   return (
     <Box
       sx={{
-        height: "calc(100vh - 140px)",
-        minHeight: 520,
+        height: modoVisualizacao === "tabela" ? "calc(100vh - 140px)" : "auto",
+        minHeight: modoVisualizacao === "tabela" ? 520 : "calc(100vh - 140px)",
         display: "flex",
         flexDirection: "column",
+        pb: 2,
       }}
     >
       {/* Header */}
@@ -1024,22 +1025,20 @@ const Tarefas: React.FC = () => {
 
       <Box
         sx={{
-          flex: 1,
-          minHeight: 0,
-          overflow: "hidden",
+          flex: modoVisualizacao === "cards" ? "0 0 auto" : 1,
+          minHeight: modoVisualizacao === "cards" ? 420 : 0,
+          overflow: modoVisualizacao === "cards" ? "visible" : "hidden",
         }}
       >
         {modoVisualizacao === "cards" ? (
-          <Card sx={{ height: "100%" }}>
-            <CardContent
-              sx={{ p: 2, height: "100%", overflow: "auto", display: "flex" }}
-            >
+          <Card sx={{ height: "auto" }}>
+            <CardContent sx={{ p: 2.5, display: "flex", overflow: "visible" }}>
               <Box
                 sx={{
                   width: "100%",
                   display: "flex",
                   flexDirection: "column",
-                  gap: 1,
+                  gap: 1.25,
                 }}
               >
                 {loading
@@ -1095,14 +1094,26 @@ const Tarefas: React.FC = () => {
                         >
                           <Box
                             sx={{
-                              width: 6,
-                              height: 54,
-                              borderRadius: 1,
-                              bgcolor: statusCor,
+                              width: { xs: 42, md: 52 },
+                              height: { xs: 42, md: 52 },
+                              borderRadius: "50%",
+                              bgcolor: alpha(
+                                PRIORIDADE_COLOR(tarefa.prioridade),
+                                0.12,
+                              ),
+                              border: `3px solid ${PRIORIDADE_COLOR(tarefa.prioridade)}`,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              color: PRIORIDADE_COLOR(tarefa.prioridade),
+                              fontWeight: 800,
+                              fontSize: { xs: "1rem", md: "1.3rem" },
                               flexShrink: 0,
-                              boxShadow: `0 0 8px ${alpha(statusCor, 0.22)}`,
+                              boxShadow: `0 0 0 4px ${alpha(PRIORIDADE_COLOR(tarefa.prioridade), 0.08)}`,
                             }}
-                          />
+                          >
+                            {tarefa.prioridade}
+                          </Box>
 
                           <Box
                             sx={{
@@ -1121,13 +1132,22 @@ const Tarefas: React.FC = () => {
                               <span
                                 style={{
                                   color: statusCor,
+                                  fontSize: "1.2rem",
                                   marginRight: 8,
                                   fontFamily: "monospace",
                                 }}
                               >
                                 {tarefa.codigo}
                               </span>
-                              {tarefa.descricao}
+                              <span
+                                style={{
+                                  color: "#242424ac",
+                                  fontSize: "0.85rem",
+                                  marginRight: 8,
+                                }}
+                              >
+                                {tarefa.descricao}
+                              </span>
                             </Typography>
                             <Box
                               sx={{
@@ -1138,6 +1158,19 @@ const Tarefas: React.FC = () => {
                                 alignItems: "center",
                               }}
                             >
+                              <Chip
+                                label={`Status: ${tarefa.status?.descricao || "—"}`}
+                                size="small"
+                                sx={{
+                                  bgcolor: alpha(statusCor, 0.2),
+                                  color: statusCor,
+                                  border: `1px solid ${alpha(statusCor, 0.45)}`,
+                                  boxShadow: `0 0 0 1px ${alpha(statusCor, 0.1)}`,
+                                  fontWeight: 700,
+                                  fontSize: "0.7rem",
+                                }}
+                              />
+
                               <Chip
                                 label={`Tipo: ${tarefa.tipo?.descricao || "—"}`}
                                 size="small"
@@ -1181,74 +1214,34 @@ const Tarefas: React.FC = () => {
                               zIndex: 1,
                             }}
                           >
-                            <Chip
-                              label={tarefa.status?.descricao || "—"}
-                              size="small"
-                              sx={{
-                                bgcolor: alpha(statusCor, 0.2),
-                                color: statusCor,
-                                border: `1px solid ${alpha(statusCor, 0.45)}`,
-                                boxShadow: `0 0 0 1px ${alpha(statusCor, 0.1)}`,
-                                fontWeight: 700,
-                                fontSize: "0.7rem",
-                              }}
-                            />
                             <Box
                               sx={{
                                 display: "flex",
                                 alignItems: "center",
-                                gap: 0.75,
+                                gap: 0.5,
+                                minWidth: 90,
                               }}
                             >
-                              <Box
+                              <LinearProgress
+                                variant="determinate"
+                                value={tarefa.percentualCompleto}
                                 sx={{
-                                  width: 28,
-                                  height: 28,
-                                  borderRadius: "50%",
-                                  bgcolor: alpha(
-                                    PRIORIDADE_COLOR(tarefa.prioridade),
-                                    0.15,
-                                  ),
-                                  border: `2px solid ${PRIORIDADE_COLOR(tarefa.prioridade)}`,
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  color: PRIORIDADE_COLOR(tarefa.prioridade),
-                                  fontWeight: 700,
-                                  fontSize: "0.75rem",
+                                  flex: 1,
+                                  height: 5,
+                                  borderRadius: 3,
+                                  bgcolor: alpha(statusCor, 0.18),
+                                  "& .MuiLinearProgress-bar": {
+                                    backgroundColor: statusCor,
+                                  },
                                 }}
+                              />
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ minWidth: 30, textAlign: "right" }}
                               >
-                                {tarefa.prioridade}
-                              </Box>
-                              <Box
-                                sx={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 0.5,
-                                  minWidth: 90,
-                                }}
-                              >
-                                <LinearProgress
-                                  variant="determinate"
-                                  value={tarefa.percentualCompleto}
-                                  sx={{
-                                    flex: 1,
-                                    height: 5,
-                                    borderRadius: 3,
-                                    bgcolor: alpha(statusCor, 0.18),
-                                    "& .MuiLinearProgress-bar": {
-                                      backgroundColor: statusCor,
-                                    },
-                                  }}
-                                />
-                                <Typography
-                                  variant="caption"
-                                  color="text.secondary"
-                                  sx={{ minWidth: 30, textAlign: "right" }}
-                                >
-                                  {tarefa.percentualCompleto}%
-                                </Typography>
-                              </Box>
+                                {tarefa.percentualCompleto}%
+                              </Typography>
                             </Box>
                             <Box sx={{ display: "flex", gap: 0.5 }}>
                               <Tooltip title="Ver detalhes">
