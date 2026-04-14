@@ -1323,16 +1323,16 @@ const TarefaDetalhe: React.FC = () => {
                     }}
                   >
                     <Typography variant="body2" color="text.secondary">
-                      Status
+                      Tipo
                     </Typography>
                     <Chip
-                      label={tarefa.status.descricao}
+                      label={tarefa.tipo.descricao}
                       size="small"
                       sx={{
-                        bgcolor: alpha(statusColor, 0.15),
-                        color: statusColor,
+                        bgcolor: alpha(tipoColor, 0.15),
+                        color: tipoColor,
                         fontWeight: 700,
-                        border: `1px solid ${alpha(statusColor, 0.3)}`,
+                        border: `1px solid ${alpha(tipoColor, 0.3)}`,
                       }}
                     />
                   </Box>
@@ -1344,16 +1344,16 @@ const TarefaDetalhe: React.FC = () => {
                     }}
                   >
                     <Typography variant="body2" color="text.secondary">
-                      Tipo
+                      Status
                     </Typography>
                     <Chip
-                      label={tarefa.tipo.descricao}
+                      label={tarefa.status.descricao}
                       size="small"
                       sx={{
-                        bgcolor: alpha(tipoColor, 0.15),
-                        color: tipoColor,
+                        bgcolor: alpha(statusColor, 0.15),
+                        color: statusColor,
                         fontWeight: 700,
-                        border: `1px solid ${alpha(tipoColor, 0.3)}`,
+                        border: `1px solid ${alpha(statusColor, 0.3)}`,
                       }}
                     />
                   </Box>

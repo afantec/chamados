@@ -17,7 +17,9 @@ public class StatusController {
 
     @GetMapping
     public List<StatusDTO> listar() {
-        return service.listar();
+        List<StatusDTO> lista = service.listar();
+        lista.sort((a, b) -> a.getDescricao().compareTo(b.getDescricao()));
+        return lista;
     }
 
     @GetMapping("/{id}")

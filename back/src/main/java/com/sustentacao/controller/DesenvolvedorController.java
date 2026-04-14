@@ -17,12 +17,16 @@ public class DesenvolvedorController {
 
     @GetMapping
     public List<DesenvolvedorDTO> listar() {
-        return service.listar();
+        List<DesenvolvedorDTO> lista = service.listar();
+        lista.sort((a, b) -> a.getNome().compareTo(b.getNome()));
+        return lista;
     }
 
     @GetMapping("/ativos")
     public List<DesenvolvedorDTO> listarAtivos() {
-        return service.listarAtivos();
+        List<DesenvolvedorDTO> lista = service.listarAtivos();
+        lista.sort((a, b) -> a.getNome().compareTo(b.getNome()));
+        return lista;
     }
 
     @GetMapping("/{id}")

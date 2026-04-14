@@ -17,7 +17,9 @@ public class TipoController {
 
     @GetMapping
     public List<TipoDTO> listar() {
-        return service.listar();
+        List<TipoDTO> lista = service.listar();
+        lista.sort((a, b) -> a.getDescricao().compareTo(b.getDescricao()));
+        return lista;
     }
 
     @GetMapping("/{id}")
