@@ -34,6 +34,14 @@ import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import CloudIcon from "@mui/icons-material/Cloud";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import DownloadIcon from "@mui/icons-material/Download";
+import FormatBoldIcon from "@mui/icons-material/FormatBold";
+import FormatItalicIcon from "@mui/icons-material/FormatItalic";
+import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
+import FormatListNumberedIcon from "@mui/icons-material/FormatListNumbered";
+import TitleIcon from "@mui/icons-material/Title";
+import CodeIcon from "@mui/icons-material/Code";
+import PreviewIcon from "@mui/icons-material/Preview";
+import EditNoteIcon from "@mui/icons-material/EditNote";
 import type {
   Tarefa,
   Anotacao,
@@ -215,6 +223,320 @@ const buildTarefaPayload = (source: Tarefa): TarefaRequest => ({
   dataFinalizacao: formatDateForInput(source.dataFinalizacao) || null,
   ambiente: source.ambiente ?? "",
 });
+
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const applyInlineFormatting = (value: string): string =>
+  value
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/__(.+?)__/g, "<u>$1</u>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>");
+
+const renderAnotacaoHtml = (value?: string | null): string => {
+  if (!value?.trim()) {
+    return "<p style=\"margin:0;\">Sem conteúdo.</p>";
+  }
+
+  const safeValue = escapeHtml(value);
+  const lines = safeValue.split(/\r?\n/);
+  const blocks: string[] = [];
+  let unorderedItems: string[] = [];
+  let orderedItems: string[] = [];
+
+  const flushLists = () => {
+    if (unorderedItems.length) {
+      blocks.push(
+        `<ul style=\"margin:0 0 8px 0;padding-left:20px;\">${unorderedItems
+          .map((item) => `<li>${applyInlineFormatting(item)}</li>`)
+          .join("")}</ul>`,
+      );
+      unorderedItems = [];
+    }
+
+    if (orderedItems.length) {
+      blocks.push(
+        `<ol style=\"margin:0 0 8px 0;padding-left:20px;\">${orderedItems
+          .map((item) => `<li>${applyInlineFormatting(item)}</li>`)
+          .join("")}</ol>`,
+      );
+      orderedItems = [];
+    }
+  };
+
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      flushLists();
+      blocks.push('<div style="height:8px"></div>');
+      return;
+    }
+
+    if (trimmed.startsWith("- ")) {
+      orderedItems = [];
+      unorderedItems.push(trimmed.slice(2));
+      return;
+    }
+
+    if (/^\d+\.\s/.test(trimmed)) {
+      unorderedItems = [];
+      orderedItems.push(trimmed.replace(/^\d+\.\s/, ""));
+      return;
+    }
+
+    flushLists();
+
+    if (trimmed.startsWith("# ")) {
+      blocks.push(
+        `<h3 style=\"margin:0 0 8px;font-size:1rem;\">${applyInlineFormatting(trimmed.slice(2))}</h3>`,
+      );
+      return;
+    }
+
+    if (trimmed.startsWith("> ")) {
+      blocks.push(
+        `<blockquote style=\"margin:0 0 8px;padding-left:12px;border-left:3px solid #00d4ff;color:#cbd5e1;\">${applyInlineFormatting(trimmed.slice(2))}</blockquote>`,
+      );
+      return;
+    }
+
+    blocks.push(
+      `<p style=\"margin:0 0 8px;\">${applyInlineFormatting(trimmed)}</p>`,
+    );
+  });
+
+  flushLists();
+  return blocks.join("");
+};
+
+type RichTextEditorProps = {
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  minRows?: number;
+};
+
+const RichTextEditor: React.FC<RichTextEditorProps> = ({
+  value,
+  onChange,
+  disabled = false,
+  minRows = 6,
+}) => {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [preview, setPreview] = useState(false);
+
+  const updateWithSelection = (
+    nextValue: string,
+    selectionStart: number,
+    selectionEnd: number,
+  ) => {
+    onChange(nextValue);
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(selectionStart, selectionEnd);
+    });
+  };
+
+  const applyWrap = (
+    before: string,
+    after: string,
+    placeholder: string,
+  ) => {
+    const input = textareaRef.current;
+    if (!input) {
+      onChange(`${value}${before}${placeholder}${after}`);
+      return;
+    }
+
+    const start = input.selectionStart ?? 0;
+    const end = input.selectionEnd ?? 0;
+    const selectedText = value.slice(start, end) || placeholder;
+    const nextValue = `${value.slice(0, start)}${before}${selectedText}${after}${value.slice(end)}`;
+
+    updateWithSelection(nextValue, start + before.length, start + before.length + selectedText.length);
+  };
+
+  const applyLinePrefix = (prefix: string) => {
+    const input = textareaRef.current;
+    if (!input) {
+      onChange(`${value}${value ? "\n" : ""}${prefix}`);
+      return;
+    }
+
+    const start = input.selectionStart ?? 0;
+    const end = input.selectionEnd ?? 0;
+    const selectedText = value.slice(start, end);
+    const targetText = selectedText || "item";
+    const prefixed = targetText
+      .split("\n")
+      .map((line, index) => `${prefix}${line || `item ${index + 1}`}`)
+      .join("\n");
+    const nextValue = `${value.slice(0, start)}${prefixed}${value.slice(end)}`;
+
+    updateWithSelection(nextValue, start, start + prefixed.length);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!(event.ctrlKey || event.metaKey)) {
+      return;
+    }
+
+    if (event.key.toLowerCase() === "b") {
+      event.preventDefault();
+      applyWrap("**", "**", "destaque");
+    }
+
+    if (event.key.toLowerCase() === "i") {
+      event.preventDefault();
+      applyWrap("*", "*", "itálico");
+    }
+  };
+
+  return (
+    <Box>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 1,
+          mb: 1,
+        }}
+      >
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+          <Tooltip title="Título">
+            <span>
+              <IconButton
+                size="small"
+                disabled={disabled}
+                onClick={() => applyWrap("# ", "", "Título")}
+              >
+                <TitleIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title="Negrito">
+            <span>
+              <IconButton
+                size="small"
+                disabled={disabled}
+                onClick={() => applyWrap("**", "**", "texto")}
+              >
+                <FormatBoldIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title="Itálico">
+            <span>
+              <IconButton
+                size="small"
+                disabled={disabled}
+                onClick={() => applyWrap("*", "*", "texto")}
+              >
+                <FormatItalicIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title="Lista com marcadores">
+            <span>
+              <IconButton
+                size="small"
+                disabled={disabled}
+                onClick={() => applyLinePrefix("- ")}
+              >
+                <FormatListBulletedIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title="Lista numerada">
+            <span>
+              <IconButton
+                size="small"
+                disabled={disabled}
+                onClick={() => applyLinePrefix("1. ")}
+              >
+                <FormatListNumberedIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title="Bloco de código">
+            <span>
+              <IconButton
+                size="small"
+                disabled={disabled}
+                onClick={() => applyWrap("`", "`", "codigo")}
+              >
+                <CodeIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
+
+        <Button
+          size="small"
+          variant="text"
+          disabled={disabled}
+          startIcon={preview ? <EditNoteIcon /> : <PreviewIcon />}
+          onClick={() => setPreview((prev) => !prev)}
+        >
+          {preview ? "Voltar ao editor" : "Pré-visualizar"}
+        </Button>
+      </Box>
+
+      <TextField
+        multiline
+        fullWidth
+        minRows={minRows}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={handleKeyDown}
+        disabled={disabled}
+        placeholder="Use a barra acima para criar títulos, listas, destaques e blocos de código."
+        inputRef={(node) => {
+          textareaRef.current = node as HTMLTextAreaElement | null;
+        }}
+      />
+
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ mt: 1, display: "block" }}
+      >
+        Atalhos: Ctrl+B para negrito e Ctrl+I para itálico.
+      </Typography>
+
+      <Collapse in={preview}>
+        <Box
+          sx={{
+            mt: 1.5,
+            p: 2,
+            borderRadius: 2,
+            border: `1px solid ${alpha("#00d4ff", 0.15)}`,
+            bgcolor: alpha("#00d4ff", 0.03),
+            "& p, & ul, & ol, & blockquote": { color: "text.primary" },
+            "& code": {
+              bgcolor: alpha("#0f172a", 0.7),
+              color: "#e2e8f0",
+              px: 0.75,
+              py: 0.25,
+              borderRadius: 1,
+              fontFamily: "monospace",
+            },
+          }}
+          dangerouslySetInnerHTML={{ __html: renderAnotacaoHtml(value) }}
+        />
+      </Collapse>
+    </Box>
+  );
+};
 
 const TarefaDetalhe: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -1238,12 +1560,24 @@ const TarefaDetalhe: React.FC = () => {
                       }}
                     >
                       <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography
-                          variant="body2"
-                          sx={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}
-                        >
-                          {anot.descricao}
-                        </Typography>
+                        <Box
+                          sx={{
+                            lineHeight: 1.6,
+                            "& p": { my: 0 },
+                            "& ul, & ol": { my: 0, pl: 2.5 },
+                            "& code": {
+                              bgcolor: alpha("#0f172a", 0.7),
+                              color: "#e2e8f0",
+                              px: 0.75,
+                              py: 0.25,
+                              borderRadius: 1,
+                              fontFamily: "monospace",
+                            },
+                          }}
+                          dangerouslySetInnerHTML={{
+                            __html: renderAnotacaoHtml(anot.descricao),
+                          }}
+                        />
                         <Typography
                           variant="caption"
                           color="text.secondary"
@@ -1561,7 +1895,7 @@ const TarefaDetalhe: React.FC = () => {
       <Dialog
         open={anotacaoDialog}
         onClose={() => setAnotacaoDialog(false)}
-        maxWidth="sm"
+        maxWidth="md"
         fullWidth
       >
         <DialogTitle>
@@ -1573,14 +1907,20 @@ const TarefaDetalhe: React.FC = () => {
               {anotacaoError}
             </Alert>
           </Collapse>
-          <TextField
-            label="Descrição *"
-            fullWidth
-            multiline
-            rows={4}
+
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ mb: 1, display: "block", textTransform: "uppercase" }}
+          >
+            Descrição *
+          </Typography>
+
+          <RichTextEditor
             value={anotacaoTexto}
-            onChange={(e) => setAnotacaoTexto(e.target.value)}
-            autoFocus
+            onChange={setAnotacaoTexto}
+            disabled={savingAnotacao}
+            minRows={8}
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5 }}>
