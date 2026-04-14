@@ -1143,11 +1143,11 @@ const Tarefas: React.FC = () => {
                               <span
                                 style={{
                                   color: "text.secondary",
-                                  fontSize: "0.85rem",
+                                  fontSize: "1.1rem",
                                   marginRight: 8,
                                 }}
                               >
-                                {tarefa.descricao}
+                                {"\u2192 "} {tarefa.descricao}
                               </span>
                             </Typography>
                             <Typography
