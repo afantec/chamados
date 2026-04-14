@@ -1588,12 +1588,19 @@ const TarefaDetalhe: React.FC = () => {
                           )}
                         </Typography>
                       </Box>
-                      <Box sx={{ display: "flex", gap: 0.5, flexShrink: 0 }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: 0.5,
+                          flexShrink: 0,
+                        }}
+                      >
                         <Tooltip title="Editar">
                           <IconButton
                             size="small"
                             onClick={() => handleAbrirAnotacao(anot)}
-                            sx={{ color: "#ffab00" }}
+                            sx={{ color: "#ffab00", width: 32, height: 32 }}
                           >
                             <EditIcon fontSize="small" />
                           </IconButton>
@@ -1602,7 +1609,7 @@ const TarefaDetalhe: React.FC = () => {
                           <IconButton
                             size="small"
                             onClick={() => setDeleteAnotacaoId(anot.id)}
-                            sx={{ color: "#ff1744" }}
+                            sx={{ color: "#ff1744", width: 32, height: 32 }}
                           >
                             <DeleteIcon fontSize="small" />
                           </IconButton>
