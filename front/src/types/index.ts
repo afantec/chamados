@@ -34,6 +34,21 @@ export interface AnotacaoRequest {
     tarefaId: number;
 }
 
+export interface TaskAlert {
+    id: number;
+    tarefaId: number;
+    tarefaCodigo: string;
+    tarefaDescricao: string;
+    message: string;
+    active: boolean;
+    createdAt: string;
+}
+
+export interface TaskAlertRequest {
+    message: string;
+    tarefaId: number;
+}
+
 export interface ArquivoTarefa {
     id: number;
     tarefaId: number;

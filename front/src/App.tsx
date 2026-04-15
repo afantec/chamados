@@ -11,6 +11,7 @@ import Tarefas from "./pages/Tarefas";
 import TarefaDetalhe from "./pages/TarefaDetalhe";
 import Desenvolvedores from "./pages/Desenvolvedores";
 import Cadastros from "./pages/Cadastros";
+import { AlertProvider } from "./context/AlertContext";
 
 const App: React.FC = () => {
   const [themeMode, setThemeMode] = useState<"dark" | "light">(() => {
@@ -41,15 +42,17 @@ const App: React.FC = () => {
             v7_relativeSplatPath: true,
           }}
         >
-          <Layout themeMode={themeMode} onToggleTheme={alternarTema}>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/tarefas" element={<Tarefas />} />
-              <Route path="/tarefas/:id" element={<TarefaDetalhe />} />
-              <Route path="/desenvolvedores" element={<Desenvolvedores />} />
-              <Route path="/cadastros" element={<Cadastros />} />
-            </Routes>
-          </Layout>
+          <AlertProvider>
+            <Layout themeMode={themeMode} onToggleTheme={alternarTema}>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/tarefas" element={<Tarefas />} />
+                <Route path="/tarefas/:id" element={<TarefaDetalhe />} />
+                <Route path="/desenvolvedores" element={<Desenvolvedores />} />
+                <Route path="/cadastros" element={<Cadastros />} />
+              </Routes>
+            </Layout>
+          </AlertProvider>
         </BrowserRouter>
       </LocalizationProvider>
     </ThemeProvider>

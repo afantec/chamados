@@ -70,6 +70,9 @@ public class Tarefa {
     @OneToMany(mappedBy = "tarefa", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Anotacao> anotacoes = new ArrayList<>();
 
+    @OneToMany(mappedBy = "tarefa", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<AlertaTarefa> alertas = new ArrayList<>();
+
     @PrePersist
     public void prePersist() {
         if (dataCriacao == null) {

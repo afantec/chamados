@@ -26,6 +26,7 @@ import {
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import EditIcon from "@mui/icons-material/Edit";
 import AddCommentIcon from "@mui/icons-material/AddComment";
+import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import PersonIcon from "@mui/icons-material/Person";
@@ -60,6 +61,7 @@ import { tipoService } from "../services/tipoService";
 import { desenvolvedorService } from "../services/desenvolvedorService";
 import { versaoService } from "../services/versaoService";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { useAlerts } from "../context/AlertContext";
 import dayjs from "dayjs";
 
 const STATUS_COLOR_LIST = [
@@ -541,6 +543,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
 const TarefaDetalhe: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { createAlert } = useAlerts();
   const [tarefa, setTarefa] = useState<Tarefa | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -553,6 +556,10 @@ const TarefaDetalhe: React.FC = () => {
   const [savingField, setSavingField] = useState<EditableField | null>(null);
   const [inlineError, setInlineError] = useState("");
   const [inlineSuccess, setInlineSuccess] = useState("");
+  const [alertaDialog, setAlertaDialog] = useState(false);
+  const [alertaMensagem, setAlertaMensagem] = useState("");
+  const [savingAlert, setSavingAlert] = useState(false);
+  const [alertaError, setAlertaError] = useState("");
 
   const [anotacoes, setAnotacoes] = useState<Anotacao[]>([]);
   const [anotacaoDialog, setAnotacaoDialog] = useState(false);
@@ -751,6 +758,42 @@ const TarefaDetalhe: React.FC = () => {
     }
   };
 
+  const handleAbrirAlerta = () => {
+    setAlertaMensagem("");
+    setAlertaError("");
+    setAlertaDialog(true);
+  };
+
+  const handleSalvarAlerta = async () => {
+    if (!id) {
+      return;
+    }
+
+    if (!alertaMensagem.trim()) {
+      setAlertaError("A mensagem do alerta é obrigatória.");
+      return;
+    }
+
+    setSavingAlert(true);
+    try {
+      await createAlert({
+        message: alertaMensagem.trim(),
+        tarefaId: Number(id),
+      });
+      setAlertaDialog(false);
+      setAlertaMensagem("");
+      setAlertaError("");
+      setInlineError("");
+      setInlineSuccess("Alerta criado com sucesso.");
+    } catch (e: unknown) {
+      setAlertaError(
+        e instanceof Error ? e.message : "Erro ao salvar o alerta.",
+      );
+    } finally {
+      setSavingAlert(false);
+    }
+  };
+
   const handleAbrirAnotacao = (anot?: Anotacao) => {
     setEditAnotacao(anot ?? null);
     setAnotacaoTexto(anot?.descricao ?? "");
@@ -915,14 +958,22 @@ const TarefaDetalhe: React.FC = () => {
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 2,
+          mb: 3,
+          flexWrap: "wrap",
+        }}
+      >
         <IconButton
           onClick={() => navigate("/tarefas")}
           sx={{ color: "text.secondary" }}
         >
           <ArrowBackIcon />
         </IconButton>
-        <Box sx={{ flex: 1 }}>
+        <Box sx={{ flex: 1, minWidth: 260 }}>
           <Box
             sx={{
               display: "flex",
@@ -1071,6 +1122,14 @@ const TarefaDetalhe: React.FC = () => {
             </Typography>
           )}
         </Box>
+        <Button
+          variant="outlined"
+          startIcon={<NotificationsActiveIcon />}
+          onClick={handleAbrirAlerta}
+          sx={{ flexShrink: 0 }}
+        >
+          Criar Alerta
+        </Button>
       </Box>
 
       <Collapse in={!!inlineError || !!inlineSuccess}>
@@ -1897,6 +1956,46 @@ const TarefaDetalhe: React.FC = () => {
           </Box>
         </Grid>
       </Grid>
+
+      <Dialog
+        open={alertaDialog}
+        onClose={() => !savingAlert && setAlertaDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Criar Alerta</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <Collapse in={!!alertaError}>
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {alertaError}
+            </Alert>
+          </Collapse>
+
+          <TextField
+            label="Mensagem do alerta"
+            placeholder="Descreva o que precisa de atenção nesta tarefa"
+            multiline
+            minRows={4}
+            fullWidth
+            autoFocus
+            value={alertaMensagem}
+            onChange={(e) => setAlertaMensagem(e.target.value)}
+            disabled={savingAlert}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setAlertaDialog(false)} disabled={savingAlert}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSalvarAlerta}
+            disabled={savingAlert}
+          >
+            {savingAlert ? "Salvando..." : "Salvar"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Anotação Dialog */}
       <Dialog

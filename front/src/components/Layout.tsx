@@ -17,6 +17,10 @@ import {
   useTheme,
   alpha,
   Tooltip,
+  Badge,
+  Menu,
+  CircularProgress,
+  Button,
 } from "@mui/material";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import AssignmentIcon from "@mui/icons-material/Assignment";
@@ -26,6 +30,9 @@ import MenuIcon from "@mui/icons-material/Menu";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
+import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
+import DoneAllIcon from "@mui/icons-material/DoneAll";
+import { useAlerts } from "../context/AlertContext";
 
 const DRAWER_WIDTH = 240;
 const DRAWER_COLLAPSED = 64;
@@ -53,8 +60,29 @@ const Layout: React.FC<LayoutProps> = ({
   const location = useLocation();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [open, setOpen] = useState(!isMobile);
+  const { alerts, loading: loadingAlerts, deactivateAlert } = useAlerts();
+  const [alertAnchorEl, setAlertAnchorEl] = useState<null | HTMLElement>(null);
+  const [processingAlertId, setProcessingAlertId] = useState<number | null>(null);
 
   const drawerWidth = open ? DRAWER_WIDTH : DRAWER_COLLAPSED;
+  const alertMenuOpen = Boolean(alertAnchorEl);
+
+  const handleOpenAlerts = (event: React.MouseEvent<HTMLElement>) => {
+    setAlertAnchorEl(event.currentTarget);
+  };
+
+  const handleCloseAlerts = () => {
+    setAlertAnchorEl(null);
+  };
+
+  const handleConcluirAlerta = async (alertId: number) => {
+    setProcessingAlertId(alertId);
+    try {
+      await deactivateAlert(alertId);
+    } finally {
+      setProcessingAlertId(null);
+    }
+  };
 
   const drawer = (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -209,36 +237,152 @@ const Layout: React.FC<LayoutProps> = ({
               "Sistema de Sustentação"}
           </Typography>
           <Box sx={{ flexGrow: 1 }} />
-          <Tooltip
-            title={themeMode === "dark" ? "Ativar tema claro" : "Ativar tema escuro"}
-          >
-            <IconButton
-              onClick={onToggleTheme}
-              size="small"
-              sx={{
-                color: themeMode === "dark" ? "#facc15" : "#0284c7",
-                border: `1px solid ${
-                  themeMode === "dark"
-                    ? alpha("#facc15", 0.35)
-                    : alpha("#0284c7", 0.35)
-                }`,
-                bgcolor:
-                  themeMode === "dark"
-                    ? alpha("#facc15", 0.1)
-                    : alpha("#0284c7", 0.08),
-                "&:hover": {
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Tooltip title="Alertas ativos">
+              <IconButton
+                onClick={handleOpenAlerts}
+                size="small"
+                sx={{
+                  color: alerts.length ? "error.main" : "text.secondary",
+                  border: `1px solid ${
+                    alerts.length
+                      ? alpha("#ef4444", 0.35)
+                      : alpha("#94a3b8", 0.25)
+                  }`,
+                  bgcolor: alerts.length
+                    ? alpha("#ef4444", 0.08)
+                    : alpha("#94a3b8", 0.06),
+                }}
+              >
+                <Badge badgeContent={alerts.length} color="error">
+                  <NotificationsNoneIcon />
+                </Badge>
+              </IconButton>
+            </Tooltip>
+            <Tooltip
+              title={themeMode === "dark" ? "Ativar tema claro" : "Ativar tema escuro"}
+            >
+              <IconButton
+                onClick={onToggleTheme}
+                size="small"
+                sx={{
+                  color: themeMode === "dark" ? "#facc15" : "#0284c7",
+                  border: `1px solid ${
+                    themeMode === "dark"
+                      ? alpha("#facc15", 0.35)
+                      : alpha("#0284c7", 0.35)
+                  }`,
                   bgcolor:
                     themeMode === "dark"
-                      ? alpha("#facc15", 0.18)
-                      : alpha("#0284c7", 0.16),
-                },
-              }}
-            >
-              {themeMode === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
-            </IconButton>
-          </Tooltip>
+                      ? alpha("#facc15", 0.1)
+                      : alpha("#0284c7", 0.08),
+                  "&:hover": {
+                    bgcolor:
+                      themeMode === "dark"
+                        ? alpha("#facc15", 0.18)
+                        : alpha("#0284c7", 0.16),
+                  },
+                }}
+              >
+                {themeMode === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Toolbar>
       </AppBar>
+
+      <Menu
+        anchorEl={alertAnchorEl}
+        open={alertMenuOpen}
+        onClose={handleCloseAlerts}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+        PaperProps={{
+          sx: {
+            mt: 1,
+            width: 380,
+            maxWidth: "calc(100vw - 32px)",
+            p: 1,
+            borderRadius: 2,
+          },
+        }}
+      >
+        <Box sx={{ px: 1.5, py: 1 }}>
+          <Typography variant="subtitle2" fontWeight={700}>
+            Alertas ativos
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {alerts.length} pendente(s)
+          </Typography>
+        </Box>
+        <Divider sx={{ mb: 1 }} />
+
+        {loadingAlerts ? (
+          <Box sx={{ px: 2, py: 3, display: "flex", justifyContent: "center" }}>
+            <CircularProgress size={22} />
+          </Box>
+        ) : alerts.length === 0 ? (
+          <Box sx={{ px: 2, py: 3, textAlign: "center" }}>
+            <Typography variant="body2" color="text.secondary">
+              Nenhum alerta ativo no momento.
+            </Typography>
+          </Box>
+        ) : (
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1, p: 1 }}>
+            {alerts.map((alerta) => (
+              <Box
+                key={alerta.id}
+                sx={{
+                  p: 1.25,
+                  borderRadius: 2,
+                  border: `1px solid ${alpha("#00d4ff", 0.12)}`,
+                  bgcolor: alpha("#00d4ff", 0.04),
+                }}
+              >
+                <Typography
+                  variant="body2"
+                  fontWeight={700}
+                  sx={{ cursor: "pointer" }}
+                  onClick={() => {
+                    navigate(`/tarefas/${alerta.tarefaId}`);
+                    handleCloseAlerts();
+                  }}
+                >
+                  {alerta.tarefaCodigo}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.75, fontSize:"10px" }}>
+                  {alerta.tarefaDescricao}
+                </Typography>
+                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                  {alerta.message}
+                </Typography>
+                <Box
+                  sx={{
+                    mt: 1,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 1,
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary">
+                    {new Date(alerta.createdAt).toLocaleString("pt-BR")}
+                  </Typography>
+                  <Button
+                    size="small"
+                    color="success"
+                    startIcon={<DoneAllIcon fontSize="small" />}
+                    onClick={() => void handleConcluirAlerta(alerta.id)}
+                    disabled={processingAlertId === alerta.id}
+                  >
+                    {processingAlertId === alerta.id ? "Concluindo..." : "Concluir"}
+                  </Button>
+                </Box>
+              </Box>
+            ))}
+          </Box>
+        )}
+      </Menu>
 
       <Drawer
         variant={isMobile ? "temporary" : "permanent"}
