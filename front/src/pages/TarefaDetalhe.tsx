@@ -27,6 +27,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import EditIcon from "@mui/icons-material/Edit";
 import AddCommentIcon from "@mui/icons-material/AddComment";
 import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import PersonIcon from "@mui/icons-material/Person";
@@ -209,6 +210,18 @@ const formatDateForInput = (value?: string | null): string => {
 
   const date = dayjs(value);
   return date.isValid() ? date.format("YYYY-MM-DD") : "";
+};
+
+const formatDateLabel = (
+  value?: string | null,
+  format = "DD/MM/YYYY",
+): string => {
+  if (!value) {
+    return "—";
+  }
+
+  const date = dayjs(value);
+  return date.isValid() ? date.format(format) : "—";
 };
 
 const buildTarefaPayload = (source: Tarefa): TarefaRequest => ({
@@ -794,6 +807,154 @@ const TarefaDetalhe: React.FC = () => {
     }
   };
 
+  const handleGerarPdf = () => {
+    if (!tarefa) {
+      return;
+    }
+
+    const printWindow = window.open("", "_blank", "width=1024,height=768");
+
+    if (!printWindow) {
+      setInlineSuccess("");
+      setInlineError(
+        "Não foi possível abrir a visualização do PDF. Verifique o bloqueio de pop-up.",
+      );
+      return;
+    }
+
+    const detalhes = [
+      ["Código", tarefa.codigo],
+      ["Descrição", tarefa.descricao],
+      ["Tipo", tarefa.tipo?.descricao || "—"],
+      ["Status", tarefa.status?.descricao || "—"],
+      ["Desenvolvedor", tarefa.desenvolvedor?.nome || "—"],
+      ["Versão", tarefa.versao?.numeroVersao || "—"],
+      ["Prioridade", `${tarefa.prioridade}/10`],
+      ["Progresso", `${tarefa.percentualCompleto}%`],
+      ["Branch", tarefa.branchNome || "—"],
+      ["Ambiente", tarefa.ambiente || "—"],
+      ["Criado em", formatDateLabel(tarefa.dataCriacao, "DD/MM/YYYY HH:mm")],
+      ["Data de entrega", formatDateLabel(tarefa.dataEntrega)],
+      ["Data de finalização", formatDateLabel(tarefa.dataFinalizacao)],
+    ];
+
+    const detalhesHtml = detalhes
+      .map(
+        ([label, value]) => `
+          <div class="info-item">
+            <div class="info-label">${escapeHtml(String(label))}</div>
+            <div class="info-value">${escapeHtml(String(value))}</div>
+          </div>
+        `,
+      )
+      .join("");
+
+    const anotacoesHtml = anotacoes.length
+      ? anotacoes
+          .map(
+            (anot) => `
+              <div class="card">
+                <div class="meta">${escapeHtml(formatDateLabel(anot.dataAnotacao, "DD/MM/YYYY HH:mm"))}</div>
+                <div>${renderAnotacaoHtml(anot.descricao)}</div>
+              </div>
+            `,
+          )
+          .join("")
+      : '<p class="empty">Nenhuma anotação cadastrada.</p>';
+
+    const arquivosHtml = arquivos.length
+      ? `
+          <ul class="file-list">
+            ${arquivos
+              .map(
+                (arquivo) =>
+                  `<li>${escapeHtml(arquivo.nomeOriginal)}</li>`,
+              )
+              .join("")}
+          </ul>
+        `
+      : '<p class="empty">Nenhum documento adicionado.</p>';
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="UTF-8" />
+          <title>Tarefa ${escapeHtml(tarefa.codigo)}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body {
+              font-family: Arial, Helvetica, sans-serif;
+              margin: 24px;
+              color: #0f172a;
+              line-height: 1.45;
+            }
+            h1, h2, h3, p { margin: 0; }
+            .header { margin-bottom: 20px; }
+            .subtitle { color: #475569; margin-top: 6px; }
+            .section-title {
+              margin: 24px 0 10px;
+              padding-bottom: 6px;
+              border-bottom: 2px solid #0ea5e9;
+              color: #0369a1;
+            }
+            .info-grid {
+              display: grid;
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+              gap: 10px;
+            }
+            .info-item, .card {
+              border: 1px solid #cbd5e1;
+              border-radius: 8px;
+              padding: 10px 12px;
+              background: #f8fafc;
+              margin-bottom: 10px;
+            }
+            .info-label {
+              font-size: 11px;
+              text-transform: uppercase;
+              color: #64748b;
+              margin-bottom: 4px;
+              letter-spacing: .05em;
+            }
+            .info-value { font-size: 14px; white-space: pre-wrap; }
+            .meta {
+              color: #64748b;
+              font-size: 12px;
+              margin-bottom: 8px;
+            }
+            .file-list { margin: 0; padding-left: 18px; }
+            .empty { color: #64748b; font-style: italic; }
+            @media print {
+              body { margin: 12px; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Tarefa ${escapeHtml(tarefa.codigo)}</h1>
+            <p class="subtitle">${escapeHtml(tarefa.descricao)}</p>
+          </div>
+
+          <h2 class="section-title">Detalhes da tarefa</h2>
+          <div class="info-grid">${detalhesHtml}</div>
+
+          <h2 class="section-title">Anotações</h2>
+          ${anotacoesHtml}
+
+          <h2 class="section-title">Documentos adicionados</h2>
+          ${arquivosHtml}
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.onload = () => {
+      printWindow.print();
+    };
+  };
+
   const handleAbrirAnotacao = (anot?: Anotacao) => {
     setEditAnotacao(anot ?? null);
     setAnotacaoTexto(anot?.descricao ?? "");
@@ -1122,14 +1283,25 @@ const TarefaDetalhe: React.FC = () => {
             </Typography>
           )}
         </Box>
-        <Button
-          variant="outlined"
-          startIcon={<NotificationsActiveIcon />}
-          onClick={handleAbrirAlerta}
-          sx={{ flexShrink: 0 }}
-        >
-          Criar Alerta
-        </Button>
+        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+          <Button
+            variant="outlined"
+            color="secondary"
+            startIcon={<PictureAsPdfIcon />}
+            onClick={handleGerarPdf}
+            sx={{ flexShrink: 0 }}
+          >
+            Gerar PDF
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<NotificationsActiveIcon />}
+            onClick={handleAbrirAlerta}
+            sx={{ flexShrink: 0 }}
+          >
+            Criar Alerta
+          </Button>
+        </Box>
       </Box>
 
       <Collapse in={!!inlineError || !!inlineSuccess}>
