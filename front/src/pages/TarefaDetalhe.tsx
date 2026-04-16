@@ -1,4 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
+import { PDFDocument } from "pdf-lib";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Box,
@@ -590,6 +593,7 @@ const TarefaDetalhe: React.FC = () => {
   const [arquivoSuccess, setArquivoSuccess] = useState("");
   const [deleteArquivoId, setDeleteArquivoId] = useState<number | null>(null);
   const [deletingArquivo, setDeletingArquivo] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const carregar = async () => {
@@ -808,194 +812,266 @@ const TarefaDetalhe: React.FC = () => {
   };
 
   const handleGerarPdf = async () => {
-    if (!tarefa) {
-      return;
-    }
+    if (!tarefa) return;
 
-    const printWindow = window.open("", "_blank", "width=1024,height=768");
+    setGeneratingPdf(true);
+    setInlineError("");
+    setInlineSuccess("");
 
-    if (!printWindow) {
-      setInlineSuccess("");
-      setInlineError(
-        "Não foi possível abrir a visualização do PDF. Verifique o bloqueio de pop-up.",
-      );
-      return;
-    }
+    try {
+      const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"];
+      const PDF_EXTENSIONS = [".pdf"];
+      const OFFICE_EXTENSIONS = [".doc", ".docx", ".xls", ".xlsx", ".odt", ".ods"];
 
-    const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"];
-    const isImage = (arquivo: ArquivoTarefa): boolean => {
-      if (arquivo.contentType?.startsWith("image/")) return true;
-      const nome = arquivo.nomeOriginal.toLowerCase();
-      return IMAGE_EXTENSIONS.some((ext) => nome.endsWith(ext));
-    };
+      const isImage = (arquivo: ArquivoTarefa): boolean => {
+        if (arquivo.contentType?.startsWith("image/")) return true;
+        return IMAGE_EXTENSIONS.some((ext) => arquivo.nomeOriginal.toLowerCase().endsWith(ext));
+      };
+      const isPdf = (arquivo: ArquivoTarefa): boolean => {
+        if (arquivo.contentType === "application/pdf") return true;
+        return PDF_EXTENSIONS.some((ext) => arquivo.nomeOriginal.toLowerCase().endsWith(ext));
+      };
+      const isOffice = (arquivo: ArquivoTarefa): boolean =>
+        OFFICE_EXTENSIONS.some((ext) => arquivo.nomeOriginal.toLowerCase().endsWith(ext));
 
-    const imageFiles = arquivos.filter(isImage);
-    const nonImageFiles = arquivos.filter((a) => !isImage(a));
+      const imageFiles = arquivos.filter(isImage);
+      const pdfFiles = arquivos.filter(isPdf);
+      const officeFiles = arquivos.filter(isOffice);
+      const otherFiles = arquivos.filter((a) => !isImage(a) && !isPdf(a) && !isOffice(a));
 
-    const imageDataUrls: { arquivo: ArquivoTarefa; dataUrl: string }[] = [];
-    for (const arquivo of imageFiles) {
-      try {
-        const blob = await tarefaService.downloadArquivo(Number(id), arquivo.id);
-        const dataUrl = await new Promise<string>((resolve, reject) => {
+      const blobToDataUrl = (blob: Blob): Promise<string> =>
+        new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result as string);
           reader.onerror = reject;
           reader.readAsDataURL(blob);
         });
-        imageDataUrls.push({ arquivo, dataUrl });
-      } catch {
-        // ignorar imagem que falhou ao carregar
+
+      const blobToArrayBuffer = (blob: Blob): Promise<ArrayBuffer> => blob.arrayBuffer();
+
+      // Download imagens
+      const imageDataUrls: { arquivo: ArquivoTarefa; dataUrl: string }[] = [];
+      for (const arquivo of imageFiles) {
+        try {
+          const blob = await tarefaService.downloadArquivo(Number(id), arquivo.id);
+          const dataUrl = await blobToDataUrl(blob);
+          imageDataUrls.push({ arquivo, dataUrl });
+        } catch { /* ignorar */ }
       }
-    }
 
-    const detalhes = [
-      ["Código", tarefa.codigo],
-      ["Descrição", tarefa.descricao],
-      ["Tipo", tarefa.tipo?.descricao || "—"],
-      ["Status", tarefa.status?.descricao || "—"],
-      ["Desenvolvedor", tarefa.desenvolvedor?.nome || "—"],
-      ["Versão", tarefa.versao?.numeroVersao || "—"],
-      ["Prioridade", `${tarefa.prioridade}/10`],
-      ["Progresso", `${tarefa.percentualCompleto}%`],
-      ["Branch", tarefa.branchNome || "—"],
-      ["Ambiente", tarefa.ambiente || "—"],
-      ["Criado em", formatDateLabel(tarefa.dataCriacao, "DD/MM/YYYY HH:mm")],
-      ["Data de entrega", formatDateLabel(tarefa.dataEntrega)],
-      ["Data de finalização", formatDateLabel(tarefa.dataFinalizacao)],
-    ];
+      // Download pdfs como ArrayBuffer para mesclar depois
+      const pdfBuffers: { arquivo: ArquivoTarefa; buffer: ArrayBuffer }[] = [];
+      for (const arquivo of pdfFiles) {
+        try {
+          const blob = await tarefaService.downloadArquivo(Number(id), arquivo.id);
+          const buffer = await blobToArrayBuffer(blob);
+          pdfBuffers.push({ arquivo, buffer });
+        } catch { /* ignorar */ }
+      }
 
-    const detalhesHtml = detalhes
-      .map(
-        ([label, value]) => `
-          <div class="info-item">
-            <div class="info-label">${escapeHtml(String(label))}</div>
-            <div class="info-value">${escapeHtml(String(value))}</div>
-          </div>
-        `,
-      )
-      .join("");
+      // ---- 1. Montar HTML da ficha principal ----
+      const detalhes: [string, string][] = [
+        ["Código", tarefa.codigo],
+        ["Descrição", tarefa.descricao],
+        ["Tipo", tarefa.tipo?.descricao || "—"],
+        ["Status", tarefa.status?.descricao || "—"],
+        ["Desenvolvedor", tarefa.desenvolvedor?.nome || "—"],
+        ["Versão", tarefa.versao?.numeroVersao || "—"],
+        ["Prioridade", `${tarefa.prioridade}/10`],
+        ["Progresso", `${tarefa.percentualCompleto}%`],
+        ["Branch", tarefa.branchNome || "—"],
+        ["Ambiente", tarefa.ambiente || "—"],
+        ["Criado em", formatDateLabel(tarefa.dataCriacao, "DD/MM/YYYY HH:mm")],
+        ["Data de entrega", formatDateLabel(tarefa.dataEntrega)],
+        ["Data de finalização", formatDateLabel(tarefa.dataFinalizacao)],
+      ];
 
-    const anotacoesHtml = anotacoes.length
-      ? anotacoes
-          .map(
-            (anot) => `
-              <div class="card">
-                <div class="meta">${escapeHtml(formatDateLabel(anot.dataAnotacao, "DD/MM/YYYY HH:mm"))}</div>
-                <div>${renderAnotacaoHtml(anot.descricao)}</div>
-              </div>
-            `,
-          )
-          .join("")
-      : '<p class="empty">Nenhuma anotação cadastrada.</p>';
+      const detalhesHtml = detalhes
+        .map(
+          ([label, value]) =>
+            `<div class="info-item"><div class="info-label">${escapeHtml(label)}</div><div class="info-value">${escapeHtml(value)}</div></div>`,
+        )
+        .join("");
 
-    const imagensHtml = imageDataUrls.length
-      ? imageDataUrls
-          .map(
-            ({ arquivo, dataUrl }) => `
-              <div class="image-block">
-                <div class="image-name">${escapeHtml(arquivo.nomeOriginal)}</div>
-                <img src="${dataUrl}" alt="${escapeHtml(arquivo.nomeOriginal)}" class="image-preview" />
-              </div>
-            `,
-          )
-          .join("")
-      : "";
+      const anotacoesHtml = anotacoes.length
+        ? anotacoes
+            .map(
+              (anot) =>
+                `<div class="card"><div class="meta">${escapeHtml(formatDateLabel(anot.dataAnotacao, "DD/MM/YYYY HH:mm"))}</div><div>${renderAnotacaoHtml(anot.descricao)}</div></div>`,
+            )
+            .join("")
+        : '<p class="empty">Nenhuma anotação cadastrada.</p>';
 
-    const arquivosHtml =
-      nonImageFiles.length || imagensHtml
-        ? `
-          ${imagensHtml}
-          ${nonImageFiles.length
-            ? `<ul class="file-list">
-                ${nonImageFiles
-                  .map((arquivo) => `<li>${escapeHtml(arquivo.nomeOriginal)}</li>`)
-                  .join("")}
-               </ul>`
-            : ""}
-        `
+      const imagensHtml = imageDataUrls
+        .map(
+          ({ arquivo, dataUrl }) =>
+            `<div class="image-block"><div class="att-name">${escapeHtml(arquivo.nomeOriginal)}</div><img src="${dataUrl}" class="image-preview" /></div>`,
+        )
+        .join("");
+
+      const pdfListHtml = pdfBuffers.length
+        ? `<div class="att-section-note">Os PDFs anexados estão incluídos nas páginas seguintes deste documento.</div>
+           <ul class="file-list">${pdfBuffers.map(({ arquivo }) => `<li>${escapeHtml(arquivo.nomeOriginal)}</li>`).join("")}</ul>`
+        : "";
+
+      const officeHtml = officeFiles.length
+        ? `<ul class="file-list">${officeFiles.map((a) => `<li>${escapeHtml(a.nomeOriginal)} <span class="doc-meta">(Word/Excel – não incorporado)</span></li>`).join("")}</ul>`
+        : "";
+
+      const otherHtml = otherFiles.length
+        ? `<ul class="file-list">${otherFiles.map((a) => `<li>${escapeHtml(a.nomeOriginal)}</li>`).join("")}</ul>`
+        : "";
+
+      const hasAnyDoc = imagensHtml || pdfListHtml || officeHtml || otherHtml;
+      const arquivosHtml = hasAnyDoc
+        ? `${imagensHtml}${pdfListHtml}${officeHtml}${otherHtml}`
         : '<p class="empty">Nenhum documento adicionado.</p>';
 
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html lang="pt-BR">
-        <head>
-          <meta charset="UTF-8" />
-          <title>Tarefa ${escapeHtml(tarefa.codigo)}</title>
-          <style>
-            * { box-sizing: border-box; }
-            body {
-              font-family: Arial, Helvetica, sans-serif;
-              margin: 24px;
-              color: #0f172a;
-              line-height: 1.45;
-            }
-            h1, h2, h3, p { margin: 0; }
-            .header { margin-bottom: 20px; }
-            .subtitle { color: #475569; margin-top: 6px; }
-            .section-title {
-              margin: 24px 0 10px;
-              padding-bottom: 6px;
-              border-bottom: 2px solid #0ea5e9;
-              color: #0369a1;
-            }
-            .info-grid {
-              display: grid;
-              grid-template-columns: repeat(2, minmax(0, 1fr));
-              gap: 10px;
-            }
-            .info-item, .card {
-              border: 1px solid #cbd5e1;
-              border-radius: 8px;
-              padding: 10px 12px;
-              background: #f8fafc;
-              margin-bottom: 10px;
-            }
-            .info-label {
-              font-size: 11px;
-              text-transform: uppercase;
-              color: #64748b;
-              margin-bottom: 4px;
-              letter-spacing: .05em;
-            }
-            .info-value { font-size: 14px; white-space: pre-wrap; }
-            .meta {
-              color: #64748b;
-              font-size: 12px;
-              margin-bottom: 8px;
-            }
-            .file-list { margin: 0; padding-left: 18px; }
-            .empty { color: #64748b; font-style: italic; }
-            .image-block { margin-bottom: 16px; }
-            .image-name { font-size: 11px; color: #64748b; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .04em; }
-            .image-preview { max-width: 100%; max-height: 480px; border-radius: 6px; border: 1px solid #cbd5e1; display: block; }
-            @media print {
-              body { margin: 12px; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>Tarefa ${escapeHtml(tarefa.codigo)}</h1>
-            <p class="subtitle">${escapeHtml(tarefa.descricao)}</p>
-          </div>
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+          <head>
+            <meta charset="UTF-8" />
+            <style>
+              * { box-sizing: border-box; margin: 0; padding: 0; }
+              body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; line-height: 1.45; padding: 24px; width: 900px; }
+              h1 { font-size: 20px; }
+              h2 { font-size: 14px; }
+              .subtitle { color: #475569; margin-top: 6px; font-size: 14px; }
+              .header { margin-bottom: 20px; }
+              .section-title { margin: 24px 0 10px; padding-bottom: 6px; border-bottom: 2px solid #0ea5e9; color: #0369a1; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+              .info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+              .info-item { border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 10px; background: #f8fafc; }
+              .info-label { font-size: 10px; text-transform: uppercase; color: #64748b; margin-bottom: 3px; letter-spacing: .05em; }
+              .info-value { font-size: 13px; white-space: pre-wrap; }
+              .card { border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; background: #f8fafc; margin-bottom: 10px; }
+              .meta { color: #64748b; font-size: 11px; margin-bottom: 6px; }
+              .empty { color: #64748b; font-style: italic; font-size: 13px; }
+              .file-list { padding-left: 18px; font-size: 13px; margin-bottom: 8px; }
+              .att-name { font-size: 11px; color: #64748b; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .04em; }
+              .att-section-note { font-size: 12px; color: #0369a1; margin-bottom: 6px; }
+              .image-block { margin-bottom: 16px; }
+              .image-preview { max-width: 100%; max-height: 480px; border: 1px solid #cbd5e1; border-radius: 4px; display: block; }
+              .doc-meta { color: #94a3b8; font-size: 11px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>Tarefa ${escapeHtml(tarefa.codigo)}</h1>
+              <p class="subtitle">${escapeHtml(tarefa.descricao)}</p>
+            </div>
+            <h2 class="section-title">Detalhes da tarefa</h2>
+            <div class="info-grid">${detalhesHtml}</div>
+            <h2 class="section-title">Anotações</h2>
+            ${anotacoesHtml}
+            <h2 class="section-title">Documentos adicionados</h2>
+            ${arquivosHtml}
+          </body>
+        </html>`;
 
-          <h2 class="section-title">Detalhes da tarefa</h2>
-          <div class="info-grid">${detalhesHtml}</div>
+      // ---- 2. Renderizar HTML num iframe oculto e capturar com html2canvas ----
+      const iframe = document.createElement("iframe");
+      iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:960px;height:auto;visibility:hidden;";
+      document.body.appendChild(iframe);
 
-          <h2 class="section-title">Anotações</h2>
-          ${anotacoesHtml}
+      await new Promise<void>((resolve) => {
+        iframe.onload = () => resolve();
+        iframe.srcdoc = htmlContent;
+      });
 
-          <h2 class="section-title">Documentos adicionados</h2>
-          ${arquivosHtml}
-        </body>
-      </html>
-    `);
+      const iframeDoc = iframe.contentDocument!;
+      const body = iframeDoc.body;
+      const totalHeight = body.scrollHeight;
+      iframe.style.height = `${totalHeight}px`;
 
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.onload = () => {
-      printWindow.print();
-    };
+      // Aguardar imagens carregarem dentro do iframe
+      const imgs = Array.from(iframeDoc.querySelectorAll("img"));
+      await Promise.all(
+        imgs.map(
+          (img) =>
+            new Promise<void>((res) => {
+              if (img.complete) { res(); return; }
+              img.onload = () => res();
+              img.onerror = () => res();
+            }),
+        ),
+      );
+
+      const canvas = await html2canvas(body, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        width: 960,
+        height: totalHeight,
+        windowWidth: 960,
+        windowHeight: totalHeight,
+      });
+
+      document.body.removeChild(iframe);
+
+      // ---- 3. Converter canvas em PDF (A4, múltiplas páginas) ----
+      const A4_W_MM = 210;
+      const A4_H_MM = 297;
+      const DPI = 96;
+      const MM_PER_PX = 25.4 / DPI;
+      const pageWidthPx = A4_W_MM / MM_PER_PX;
+      const pageHeightPx = A4_H_MM / MM_PER_PX;
+      const scaleRatio = pageWidthPx / canvas.width;
+      const scaledTotalHeight = canvas.height * scaleRatio;
+      const pageCount = Math.ceil(scaledTotalHeight / pageHeightPx);
+
+      const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+
+      for (let i = 0; i < pageCount; i++) {
+        if (i > 0) pdf.addPage();
+
+        const srcY = (i * pageHeightPx) / scaleRatio;
+        const srcH = Math.min(pageHeightPx / scaleRatio, canvas.height - srcY);
+
+        const pageCanvas = document.createElement("canvas");
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = srcH;
+        const ctx = pageCanvas.getContext("2d")!;
+        ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
+
+        const imgData = pageCanvas.toDataURL("image/jpeg", 0.92);
+        const imgH = srcH * scaleRatio * MM_PER_PX;
+        pdf.addImage(imgData, "JPEG", 0, 0, A4_W_MM, imgH);
+      }
+
+      // ---- 4. Mesclar PDFs anexados usando pdf-lib ----
+      if (pdfBuffers.length > 0) {
+        const mainPdfBytes = pdf.output("arraybuffer");
+        const merged = await PDFDocument.load(mainPdfBytes);
+
+        for (const { buffer } of pdfBuffers) {
+          try {
+            const attachedPdf = await PDFDocument.load(buffer, { ignoreEncryption: true });
+            const copiedPages = await merged.copyPages(attachedPdf, attachedPdf.getPageIndices());
+            copiedPages.forEach((p) => merged.addPage(p));
+          } catch { /* ignorar pdf corrompido */ }
+        }
+
+        const mergedBytes = await merged.save();
+        const blob = new Blob([mergedBytes], { type: "application/pdf" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `Tarefa_${tarefa.codigo}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } else {
+        pdf.save(`Tarefa_${tarefa.codigo}.pdf`);
+      }
+
+      setInlineSuccess("PDF gerado com sucesso.");
+    } catch (e: unknown) {
+      setInlineError(e instanceof Error ? e.message : "Erro ao gerar o PDF.");
+    } finally {
+      setGeneratingPdf(false);
+    }
   };
 
   const handleAbrirAnotacao = (anot?: Anotacao) => {
@@ -1332,9 +1408,10 @@ const TarefaDetalhe: React.FC = () => {
             color="secondary"
             startIcon={<PictureAsPdfIcon />}
             onClick={() => { void handleGerarPdf(); }}
+            disabled={generatingPdf}
             sx={{ flexShrink: 0 }}
           >
-            Gerar PDF
+            {generatingPdf ? "Gerando..." : "Gerar PDF"}
           </Button>
           <Button
             variant="outlined"
