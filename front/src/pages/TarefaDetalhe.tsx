@@ -807,7 +807,7 @@ const TarefaDetalhe: React.FC = () => {
     }
   };
 
-  const handleGerarPdf = () => {
+  const handleGerarPdf = async () => {
     if (!tarefa) {
       return;
     }
@@ -820,6 +820,32 @@ const TarefaDetalhe: React.FC = () => {
         "Não foi possível abrir a visualização do PDF. Verifique o bloqueio de pop-up.",
       );
       return;
+    }
+
+    const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"];
+    const isImage = (arquivo: ArquivoTarefa): boolean => {
+      if (arquivo.contentType?.startsWith("image/")) return true;
+      const nome = arquivo.nomeOriginal.toLowerCase();
+      return IMAGE_EXTENSIONS.some((ext) => nome.endsWith(ext));
+    };
+
+    const imageFiles = arquivos.filter(isImage);
+    const nonImageFiles = arquivos.filter((a) => !isImage(a));
+
+    const imageDataUrls: { arquivo: ArquivoTarefa; dataUrl: string }[] = [];
+    for (const arquivo of imageFiles) {
+      try {
+        const blob = await tarefaService.downloadArquivo(Number(id), arquivo.id);
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        imageDataUrls.push({ arquivo, dataUrl });
+      } catch {
+        // ignorar imagem que falhou ao carregar
+      }
     }
 
     const detalhes = [
@@ -862,18 +888,32 @@ const TarefaDetalhe: React.FC = () => {
           .join("")
       : '<p class="empty">Nenhuma anotação cadastrada.</p>';
 
-    const arquivosHtml = arquivos.length
-      ? `
-          <ul class="file-list">
-            ${arquivos
-              .map(
-                (arquivo) =>
-                  `<li>${escapeHtml(arquivo.nomeOriginal)}</li>`,
-              )
-              .join("")}
-          </ul>
+    const imagensHtml = imageDataUrls.length
+      ? imageDataUrls
+          .map(
+            ({ arquivo, dataUrl }) => `
+              <div class="image-block">
+                <div class="image-name">${escapeHtml(arquivo.nomeOriginal)}</div>
+                <img src="${dataUrl}" alt="${escapeHtml(arquivo.nomeOriginal)}" class="image-preview" />
+              </div>
+            `,
+          )
+          .join("")
+      : "";
+
+    const arquivosHtml =
+      nonImageFiles.length || imagensHtml
+        ? `
+          ${imagensHtml}
+          ${nonImageFiles.length
+            ? `<ul class="file-list">
+                ${nonImageFiles
+                  .map((arquivo) => `<li>${escapeHtml(arquivo.nomeOriginal)}</li>`)
+                  .join("")}
+               </ul>`
+            : ""}
         `
-      : '<p class="empty">Nenhum documento adicionado.</p>';
+        : '<p class="empty">Nenhum documento adicionado.</p>';
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -925,6 +965,9 @@ const TarefaDetalhe: React.FC = () => {
             }
             .file-list { margin: 0; padding-left: 18px; }
             .empty { color: #64748b; font-style: italic; }
+            .image-block { margin-bottom: 16px; }
+            .image-name { font-size: 11px; color: #64748b; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .04em; }
+            .image-preview { max-width: 100%; max-height: 480px; border-radius: 6px; border: 1px solid #cbd5e1; display: block; }
             @media print {
               body { margin: 12px; }
             }
@@ -1288,7 +1331,7 @@ const TarefaDetalhe: React.FC = () => {
             variant="outlined"
             color="secondary"
             startIcon={<PictureAsPdfIcon />}
-            onClick={handleGerarPdf}
+            onClick={() => { void handleGerarPdf(); }}
             sx={{ flexShrink: 0 }}
           >
             Gerar PDF
