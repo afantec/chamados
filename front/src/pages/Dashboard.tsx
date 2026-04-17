@@ -69,6 +69,87 @@ const PRIORIDADE_COLOR = (p: number) => {
 
 const normalizarStatus = (status: string) => status.trim().toLowerCase();
 
+const BugCard: React.FC<{
+  total: number;
+  bugsByStatus: { descricao: string; statusId: number; count: number }[];
+  statusColorMap: Record<number, string>;
+}> = ({ total, bugsByStatus, statusColorMap }) => (
+  <Card
+    sx={{
+      position: "relative",
+      overflow: "hidden",
+      height: "100%",
+      "&::before": {
+        content: '""',
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 3,
+        background: `linear-gradient(90deg, #ff1744, ${alpha("#ff1744", 0.3)})`,
+      },
+    }}
+  >
+    <CardContent sx={{ p: 3 }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1.5 }}>
+        <Box>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ textTransform: "uppercase", letterSpacing: "0.08em" }}
+          >
+            Bugs
+          </Typography>
+          <Typography variant="h3" fontWeight={700} sx={{ mt: 0.5, color: "#ff1744" }}>
+            {total}
+          </Typography>
+        </Box>
+        <Box
+          sx={{
+            width: 48,
+            height: 48,
+            borderRadius: 2,
+            bgcolor: alpha("#ff1744", 0.12),
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#ff1744",
+          }}
+        >
+          <BugReportIcon />
+        </Box>
+      </Box>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+        {bugsByStatus.map(({ descricao, statusId, count }) => {
+          const color = statusColorMap[statusId] ?? FALLBACK_STATUS_COLOR;
+          return (
+            <Box
+              key={statusId}
+              sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+            >
+              <Typography variant="caption" color="text.secondary" noWrap sx={{ maxWidth: "70%" }}>
+                {descricao}
+              </Typography>
+              <Chip
+                label={count}
+                size="small"
+                sx={{
+                  height: 20,
+                  fontSize: "0.7rem",
+                  fontWeight: 700,
+                  bgcolor: alpha(color, 0.15),
+                  color,
+                  border: `1px solid ${alpha(color, 0.3)}`,
+                }}
+              />
+            </Box>
+          );
+        })}
+      </Box>
+    </CardContent>
+  </Card>
+);
+
 const StatCard: React.FC<{
   title: string;
   value: number | string;
@@ -180,7 +261,21 @@ const Dashboard: React.FC = () => {
     const status = normalizarStatus(t.status.descricao);
     return status === "finalizado" || status === "finalizada";
   }).length;
-  const bugs = tarefas.filter((t) => t.tipo.descricao === "Bug").length;
+  const bugsLista = useMemo(
+    () => tarefas.filter((t) => t.tipo.descricao === "Bug"),
+    [tarefas],
+  );
+
+  const bugsByStatus = useMemo(() => {
+    const map: Record<number, { descricao: string; statusId: number; count: number }> = {};
+    bugsLista.forEach((t) => {
+      if (!map[t.status.id]) {
+        map[t.status.id] = { descricao: t.status.descricao, statusId: t.status.id, count: 0 };
+      }
+      map[t.status.id].count++;
+    });
+    return Object.values(map).sort((a, b) => b.count - a.count);
+  }, [bugsLista]);
 
   const recentes = [...tarefas]
     .sort(
@@ -258,12 +353,10 @@ const Dashboard: React.FC = () => {
               sx={{ borderRadius: 3 }}
             />
           ) : (
-            <StatCard
-              title="Bugs Abertos"
-              value={bugs}
-              icon={<BugReportIcon />}
-              color="#ff1744"
-              subtitle="tipo Bug"
+            <BugCard
+              total={bugsLista.length}
+              bugsByStatus={bugsByStatus}
+              statusColorMap={statusColorMap}
             />
           )}
         </Grid>
