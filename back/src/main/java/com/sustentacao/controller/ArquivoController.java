@@ -44,7 +44,7 @@ public class ArquivoController {
         String nomeUtf8 = java.net.URLEncoder.encode(nomeOriginal, StandardCharsets.UTF_8).replace("+", "%20");
 
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(contentType))
+                .contentType(MediaType.parseMediaType(contentType != null ? contentType : MediaType.APPLICATION_OCTET_STREAM_VALUE))
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename*=UTF-8''" + nomeUtf8)
                 .body(resource);
